@@ -148,9 +148,9 @@ td.num,th.num{text-align:right}
 <header>
   <button class="hbtn" id="menuBtn" onclick="document.querySelector('nav').classList.toggle('open')">☰</button>
   <div class="logo">⚓</div>
-  <h1>金門港 新港埠資訊系統</h1><span class="demo">DEMO V3</span>
+  <h1>金門港 新港埠資訊系統</h1><span class="demo">DEMO V4</span>
   <div class="sp"></div>
-  <span id="dateLbl" class="small"></span>
+  <span id="cloudLbl" class="small" title="資料儲存位置"></span><span id="dateLbl" class="small"></span>
   <select id="userSel" title="切換登入身分（展示權限控管）"></select>
   <button class="hbtn" onclick="resetDemo()" title="清除所有修改，回到初始展示資料">重設資料</button>
 </header>
@@ -167,7 +167,7 @@ td.num,th.num{text-align:right}
    - 資料存在瀏覽器（localStorage），「重設資料」可回到初始狀態
    - 所有資料皆為展示用模擬資料
    ============================================================ */
-const KEY = 'kmport-demo-v3';
+const KEY = 'kmport-demo-v4';
 const $ = s => document.querySelector(s);
 const pad = n => String(n).padStart(2, '0');
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -520,7 +520,7 @@ function aerialSVG() {
     const vert = b.h > b.w;
     const shipsHere = st.occ.map((v, i) => shipIcon(b, v, i, vert)).join('');
     const lx = vert ? b.x + b.w / 2 : b.x + b.w / 2, ly = vert ? b.y - 6 : b.y - 5;
-    return `<g class="berth ${MAPSEL === b.id ? 'sel' : ''}" onclick="selBerth('${b.id}')"><rect class="b" x="${b.x}" y="${b.y}" width="${b.w}" height="${b.h}" rx="4" fill="${col}" fill-opacity=".35" stroke="${col}" stroke-width="2"/>${shipsHere}
+    return `<g class="berth ${MAPSEL === b.id ? 'sel' : ''}" data-bid="${b.id}" onclick="selBerth('${b.id}')"><rect class="b" x="${b.x}" y="${b.y}" width="${b.w}" height="${b.h}" rx="4" fill="${col}" fill-opacity=".35" stroke="${col}" stroke-width="2"/>${shipsHere}
       <text x="${lx}" y="${ly}" text-anchor="middle" font-size="12" font-weight="700" fill="#fff" stroke="#0b2a4a" stroke-width="3" paint-order="stroke">${esc(b.name)}${st.sch.length ? ' ⏱' + st.sch.length : ''}</text></g>`;
   }).join('');
   return `<svg viewBox="0 0 1000 640" xmlns="http://www.w3.org/2000/svg">
@@ -1961,7 +1961,7 @@ function buildMap(ro) {
   S.berths.filter(b => b.port === '水頭').forEach(b => {
     const [la, ln, rot] = bpos(b); const st = berthState(b);
     const col = { free: '#2e9d5b', sch: '#e0a100', part: '#e07b00', full: '#d64545' }[st.state];
-    const bm = L.marker([la, ln], { draggable: !ro && BERTH_EDIT, icon: L.divIcon({ className: '', html: `<div class="lb ${MAPSEL === b.id ? 'sel' : ''}" style="--c:${col}">${esc(b.name)}${st.sch.length ? ' ⏱' + st.sch.length : ''}</div>`, iconSize: [0, 0] }) }).addTo(berthL);
+    const bm = L.marker([la, ln], { draggable: !ro && BERTH_EDIT, icon: L.divIcon({ className: '', html: `<div class="lb ${MAPSEL === b.id ? 'sel' : ''}" data-bid="${b.id}"style="--c:${col}">${esc(b.name)}${st.sch.length ? ' ⏱' + st.sch.length : ''}</div>`, iconSize: [0, 0] }) }).addTo(berthL);
     bm.on('click', () => { if (ro) { bm.bindPopup(berthPopup(b)).openPopup(); } else selBerth(b.id); });
     bm.on('dragend', e => { const p = e.target.getLatLng(); S.berthPos = S.berthPos || {}; S.berthPos[b.id] = [p.lat, p.lng, rot]; log('校正船席位置', b.name, `${p.lat.toFixed(6)}, ${p.lng.toFixed(6)}`); save(); toast(`已更新「${esc(b.name)}」位置`); });
     const draw = (v, i, sch) => {
@@ -1969,7 +1969,8 @@ function buildMap(ro) {
       const p = rot === -90 ? [la + (b.cap > 1 ? 0 : 0.00018), ln + off] : [la - 0.00006, ln + off + (b.cap > 1 ? 0 : 0.00025)];
       const late = !sch && v.outTime < Date.now();
       const html = `<div class="lsw"><div class="lhull ${sch ? 'sch' : ''}" style="background:${SHIPC[s.type] || '#ccc'};transform:rotate(${rot}deg) scale(${s.gt >= 300 ? 1 : .6})"></div><div class="llab ${sch ? 'p' : ''}">${esc(s.name)}<small>»${esc(agent(s))}</small>${late ? '<span class="bad">!</span>' : ''}${sch ? ` <small>${fmtT(v.inTime)}</small>` : ''}</div></div>`;
-      const mk = L.marker(p, { icon: L.divIcon({ className: '', html, iconSize: [0, 0] }) }).addTo(sch ? schL : shipsL);
+      const mk = L.marker(p, { draggable: !ro && isStaff(), icon: L.divIcon({ className: '', html, iconSize: [0, 0] }) }).addTo(sch ? schL : shipsL);
+      mk.on('dragend', e => { const nb = nearestBerth(m, e.target.getLatLng()); if (nb && nb.id !== b.id) dockShip(v.id, nb.id); else { toast(nb ? '仍在原船席' : '請拖到船席附近（約 80 公尺內）'); render(); } });
       mk.bindPopup(shipPopup(v, ro)); shipMarkers[v.id] = mk;
     };
     st.occ.forEach((v, i) => draw(v, i, false)); st.sch.forEach((v, i) => draw(v, i, true));
@@ -2010,8 +2011,138 @@ const _selBerth = selBerth;
 selBerth = function (id) { MAPSEL = id; const p = $('#berthPanel'); if (p && LMAP) { p.innerHTML = berthPanel(); document.querySelectorAll('.lb').forEach(e => e.classList.toggle('sel', e.textContent.startsWith(berth(id).name))); } else render(); };
 
 /* ---------- 啟動 ---------- */
-load(); migrateV2(); migrateV3(); save();
+/* V4：啟動移到第四段程式最後 */
+</script>
+<style>
+/* ===== V4：圖像化指泊 ===== */
+.dockwrap{display:grid;grid-template-columns:1fr 330px;gap:14px}
+.dockwrap>*{min-width:0}
+.dcard{display:flex;gap:8px;align-items:center;background:#fff;border:1px solid var(--line);border-left:5px solid var(--c);border-radius:8px;padding:7px 9px;margin-bottom:6px;cursor:grab;user-select:none}
+.dcard:active{cursor:grabbing}
+.dcard.on{outline:3px solid #f5b301;background:#fffbe8}
+.dcard .nm{font-weight:700}
+.dcard .meta{font-size:12px;color:var(--muted)}
+.dcard .grip{color:#9aa5b1;font-size:16px}
+.dsec{font-size:13px;font-weight:700;color:var(--navy2);margin:10px 0 6px;display:flex;justify-content:space-between}
+.dlist{max-height:300px;overflow:auto;padding-right:2px}
+.lb.drop,.berth.drop rect.b{outline:3px solid #ffeb3b}
+.berth.drop rect.b{stroke:#ffeb3b;stroke-width:5}
+.picking .lb{animation:pk 1s infinite}
+.picking .berth rect.b{stroke:#ffeb3b;stroke-width:3;animation:pk 1s infinite}
+@keyframes pk{50%{box-shadow:0 0 0 4px rgba(255,235,59,.7);opacity:.75}}
+.pickbar{background:#fff4c2;border:1px solid #f1d36b;border-radius:8px;padding:7px 10px;margin-bottom:8px;font-size:13px;display:flex;gap:8px;align-items:center;justify-content:space-between}
+@media (max-width:1100px){.dockwrap{grid-template-columns:1fr}}
+</style>
+<script>
+/* ============================================================
+   V4：① 圖像化指泊——把船舶卡片拖到船席（或先點船、再點船席）；
+       地圖上的船也能直接拖到別的船席＝移泊；實景地圖／示意圖可切換
+   ② 雲端資料庫（選用）：填入 Supabase 的網址與金鑰後，所有人看到同一份資料
+   ============================================================ */
+const CLOUD = {
+  url: '',   // 例：https://abcdefgh.supabase.co   （Supabase › Project Settings › API › Project URL）
+  key: '',   // anon public key（Supabase › Project Settings › API › anon public）
+  id: 'kinmen-demo',
+};
+const cloudOn = () => !!(CLOUD.url && CLOUD.key);
+let CLOUD_T = null, CLOUD_AT = '', CLOUD_BUSY = false;
+const cloudHdr = () => ({ apikey: CLOUD.key, Authorization: 'Bearer ' + CLOUD.key, 'Content-Type': 'application/json' });
+function cloudLbl(t, ok = true) { const e = $('#cloudLbl'); if (e) { e.textContent = t; e.style.color = ok ? '#bfe3ff' : '#ffb3b3'; e.style.marginRight = '8px'; } }
+async function cloudLoad() {
+  const r = await fetch(`${CLOUD.url}/rest/v1/demo_state?id=eq.${encodeURIComponent(CLOUD.id)}&select=data,updated_at`, { headers: cloudHdr() });
+  if (!r.ok) throw new Error('讀取失敗 ' + r.status);
+  const rows = await r.json();
+  return rows[0] || null;
+}
+async function cloudPush() {
+  CLOUD_BUSY = true;
+  try {
+    const at = new Date().toISOString();
+    const r = await fetch(`${CLOUD.url}/rest/v1/demo_state`, { method: 'POST', headers: { ...cloudHdr(), Prefer: 'resolution=merge-duplicates,return=minimal' }, body: JSON.stringify({ id: CLOUD.id, data: S, updated_at: at }) });
+    if (!r.ok) throw new Error('寫入失敗 ' + r.status);
+    CLOUD_AT = at; cloudLbl('☁ 已同步 ' + fmtT(Date.now()));
+  } catch (e) { cloudLbl('☁ 同步失敗', false); console.warn(e); }
+  CLOUD_BUSY = false;
+}
+const _saveLocal = save;
+save = function () { _saveLocal(); if (cloudOn()) { clearTimeout(CLOUD_T); cloudLbl('☁ 儲存中…'); CLOUD_T = setTimeout(cloudPush, 1200); } };
+async function cloudPoll() {
+  if (!cloudOn() || CLOUD_BUSY || CLOUD_T && $('#cloudLbl')?.textContent.includes('儲存中') || $('#modal').classList.contains('on')) return;
+  try { const row = await cloudLoad(); if (row && row.updated_at > CLOUD_AT) { const cur = S.cur; S = row.data; S.cur = cur; CLOUD_AT = row.updated_at; _saveLocal(); render(); cloudLbl('☁ 已更新 ' + fmtT(Date.now())); } } catch (e) {}
+}
+
+/* ---------- 指泊動作 ---------- */
+let PICK = null;
+S && (S.mapMode = S.mapMode || 'real');
+function nearestBerth(m, ll) { let best = null, d0 = 80; S.berths.filter(b => b.port === '水頭').forEach(b => { const d = m.distance(ll, L.latLng(bpos(b).slice(0, 2))); if (d < d0) { d0 = d; best = b; } }); return best; }
+function dockShip(vid, bid) {
+  const v = voy(vid), b = berth(bid); PICK = null;
+  if (!v || !b) { render(); return; }
+  if (!isStaff()) { toast('船席指泊需港務處人員'); render(); return; }
+  if (v.move === '靠泊') { if (v.berthId === bid) { render(); return; } moveBerth(vid, bid); return; }
+  const clash = S.voyages.filter(x => x.id !== vid && x.berthId === bid && x.status === '通過' && !x.actualOut && (x.actualIn || x.inTime) < v.outTime && x.outTime > v.inTime);
+  if (clash.length >= b.cap && !confirm(`${b.name} 在 ${fmtS(v.inTime)}～${fmtT(v.outTime)} 已有：${clash.map(x => ship(x.shipId).name).join('、')}\n仍要指派「${ship(v.shipId).name}」？`)) { render(); return; }
+  assign(vid, bid);
+}
+function pickV(vid) { PICK = PICK === vid ? null : vid; render(); if (PICK) toast(`已選「${esc(ship(voy(vid).shipId).name)}」，請點地圖上的船席`); }
+function dragV(e, vid) { e.dataTransfer.setData('text/plain', vid); e.dataTransfer.effectAllowed = 'move'; }
+function wireDrop(box, toBerth) {
+  if (!box) return;
+  box.addEventListener('dragover', e => { e.preventDefault(); const t = e.target.closest?.('[data-bid]'); box.querySelectorAll('.drop').forEach(x => x !== t && x.classList.remove('drop')); t && t.classList.add('drop'); });
+  box.addEventListener('dragleave', e => { const t = e.target.closest?.('[data-bid]'); t && t.classList.remove('drop'); });
+  box.addEventListener('drop', e => { e.preventDefault(); const vid = e.dataTransfer.getData('text/plain'); const bid = toBerth(e); if (vid && bid) dockShip(vid, bid); else toast('請放在船席上（或船席附近）'); });
+}
+function dockPanel() {
+  const t2 = dayStart(2);
+  const wait = S.voyages.filter(v => v.status === '通過' && v.move === '預報' && v.inTime < t2 && v.inTime > dayStart(-1)).sort((a, b) => (a.berthId ? 1 : 0) - (b.berthId ? 1 : 0) || a.inTime - b.inTime);
+  const inport = S.voyages.filter(v => v.status === '通過' && v.move === '靠泊').sort((a, b) => a.outTime - b.outTime);
+  const card = (v, kind) => { const s = ship(v.shipId); return `<div class="dcard ${PICK === v.id ? 'on' : ''}" style="--c:${SHIPC[s.type] === '#ffffff' ? '#b9c2cc' : SHIPC[s.type] || '#ccc'}" draggable="true" ondragstart="dragV(event,'${v.id}')" onclick="pickV('${v.id}')">
+    <span class="grip">⋮⋮</span><div style="flex:1;min-width:0"><div class="nm">${esc(s.name)} <span class="meta">${esc(s.type)}</span></div>
+    <div class="meta">${kind === 'w' ? `預定 ${fmtS(v.inTime)}｜${v.berthId ? '已排 ' + esc(berth(v.berthId)?.name || '') : '<b style="color:#c07a00">待指泊</b>'}` : `靠 ${esc(berth(v.berthId)?.name || '')}｜離 ${fmtS(v.outTime)}${v.outTime < Date.now() ? ' <b style="color:var(--red)">逾時</b>' : ''}`}</div></div></div>`; };
+  return `<h3>🧲 拖曳指泊</h3><div class="small muted">把船舶卡片<b>拖到地圖船席</b>上即完成指派；在港船舶拖到別的船席＝移泊。手機：<b>先點船舶、再點船席</b>。</div>
+  ${PICK ? `<div class="pickbar" style="margin-top:8px"><span>已選：<b>${esc(ship(voy(PICK).shipId).name)}</b> → 請點船席</span><button class="btn s" onclick="PICK=null;render()">取消</button></div>` : ''}
+  <div class="dsec"><span>⏱ 預定進港（今明兩天）</span><span class="tag t-info">${wait.length}</span></div><div class="dlist">${wait.map(v => card(v, 'w')).join('') || '<div class="small muted">無</div>'}</div>
+  <div class="dsec"><span>⚓ 在港船舶（拖曳＝移泊）</span><span class="tag t-ok">${inport.length}</span></div><div class="dlist">${inport.map(v => card(v, 'i')).join('') || '<div class="small muted">無</div>'}</div>
+  ${MAPSEL ? `<hr style="border:none;border-top:1px solid var(--line);margin:12px 0">${berthPanel()}` : '<div class="small muted" style="margin-top:10px">點船席可看該船席的靠泊、排定與操作。</div>'}`;
+}
+selBerth = function (id) { if (PICK) { dockShip(PICK, id); return; } MAPSEL = id; render(); };
+
+/* ---------- 港區調度頁（實景地圖／示意圖 二選一） ---------- */
+VIEWS.map = () => {
+  if (MAPLV !== 'harbor') return _mapView();
+  const real = (S.mapMode || 'real') === 'real';
+  const crumb = `<div class="crumb"><a onclick="MAPLV='region';render()">全區地圖</a> › <a onclick="MAPLV='kinmen';render()">金門</a> › <b>水頭港</b></div>`;
+  const ro = !isStaff();
+  return `<div class="title"><h2>港區調度（船席指泊）</h2><span class="sub">拖曳船舶到船席即可指派、移泊；點船席看詳情與靠泊／出港操作</span><div class="sp"></div>
+    <div class="seg"><a class="${real ? 'on' : ''}" onclick="S.mapMode='real';save();render()">🛰️ 實景地圖</a><a class="${real ? '' : 'on'}" onclick="S.mapMode='schema';save();render()">📐 示意圖</a></div></div>${crumb}
+  <div class="dockwrap"><div class="mapbox ${PICK ? 'picking' : ''}" id="dropZone">${real ? '<div id="lmap" class="lmap"></div>' : aerialSVG()}${real ? MAP_LEGEND : `<div class="legend"><span><i style="background:#2e9d5b"></i>空泊位</span><span><i style="background:#e0a100"></i>今日已排</span><span><i style="background:#e07b00"></i>泊區部分使用</span><span><i style="background:#d64545"></i>靠泊中</span><span>⏱＝今日待靠泊船數</span></div>`}</div>
+  <div class="card" id="berthPanel">${ro ? berthPanel() : dockPanel()}</div></div>`;
+};
+AFTER.map = () => {
+  if (MAPLV !== 'harbor') return;
+  const box = $('#dropZone');
+  if ((S.mapMode || 'real') === 'real') {
+    buildMap(false);
+    wireDrop(box, e => { const t = e.target.closest?.('[data-bid]'); if (t) return t.dataset.bid; if (!LMAP) return null; const nb = nearestBerth(LMAP, LMAP.mouseEventToLatLng(e)); return nb?.id; });
+    if (PICK) $('#lmap')?.classList.add('picking');
+  } else wireDrop(box, e => e.target.closest?.('[data-bid]')?.dataset.bid);
+};
+
+/* ---------- 說明 ---------- */
+const _about = showAbout;
+showAbout = function () { _about(); const mb = document.querySelector('#modal .mbody'); if (mb) mb.insertAdjacentHTML('afterbegin', `<div class="note"><b>V4（整合版）</b>：包含 V1～V3 全部功能；港區調度可在<b>實景地圖</b>（國土測繪中心空拍圖）與<b>示意圖</b>之間切換，並可<b>拖曳船舶到船席</b>完成指泊／移泊。資料儲存：${cloudOn() ? '雲端資料庫（所有人共用）' : '本機瀏覽器（各自獨立）'}。</div>`); };
+
+/* ---------- 啟動 ---------- */
+load(); migrateV2(); migrateV3(); S.mapMode = S.mapMode || 'real'; _saveLocal();
 VIEW = isGuest() ? 'portal' : 'dash'; render();
+if (cloudOn()) {
+  cloudLbl('☁ 連線中…');
+  cloudLoad().then(row => {
+    if (row && row.data && row.data.v3) { const cur = S.cur; S = row.data; S.cur = cur; CLOUD_AT = row.updated_at; _saveLocal(); render(); cloudLbl('☁ 雲端資料庫'); }
+    else cloudPush();
+    setInterval(cloudPoll, 20000);
+  }).catch(e => { cloudLbl('☁ 連線失敗，使用本機資料', false); console.warn(e); });
+} else cloudLbl('💾 本機資料');
 </script>
 </body>
 </html>
