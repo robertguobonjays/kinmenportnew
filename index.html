@@ -148,7 +148,7 @@ td.num,th.num{text-align:right}
 <header>
   <button class="hbtn" id="menuBtn" onclick="document.querySelector('nav').classList.toggle('open')">☰</button>
   <div class="logo">⚓</div>
-  <h1>金門港 新港埠資訊系統</h1><span class="demo">DEMO V5</span>
+  <h1>金門港 新港埠資訊系統</h1><span class="demo">DEMO V6</span>
   <div class="sp"></div>
   <span id="cloudLbl" class="small" title="資料儲存位置"></span><span id="dateLbl" class="small"></span>
   <select id="userSel" title="切換登入身分（展示權限控管）"></select>
@@ -167,7 +167,7 @@ td.num,th.num{text-align:right}
    - 資料存在瀏覽器（localStorage），「重設資料」可回到初始狀態
    - 所有資料皆為展示用模擬資料
    ============================================================ */
-const KEY = 'kmport-demo-v5';
+const KEY = 'kmport-demo-v6';
 const $ = s => document.querySelector(s);
 const pad = n => String(n).padStart(2, '0');
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -2133,6 +2133,7 @@ const _about = showAbout;
 showAbout = function () { _about(); const mb = document.querySelector('#modal .mbody'); if (mb) mb.insertAdjacentHTML('afterbegin', `<div class="note"><b>V4（整合版）</b>：包含 V1～V3 全部功能；港區調度可在<b>實景地圖</b>（國土測繪中心空拍圖）與<b>示意圖</b>之間切換，並可<b>拖曳船舶到船席</b>完成指泊／移泊。資料儲存：${cloudOn() ? '雲端資料庫（所有人共用）' : '本機瀏覽器（各自獨立）'}。</div>`); };
 
 /* ---------- 啟動 ---------- */
+function startApp() {
 load(); migrateV2(); migrateV3(); S.mapMode = S.mapMode || 'real'; _saveLocal();
 VIEW = isGuest() ? 'portal' : 'dash'; render();
 if (cloudOn()) {
@@ -2143,6 +2144,291 @@ if (cloudOn()) {
     setInterval(cloudPoll, 20000);
   }).catch(e => { cloudLbl('☁ 連線失敗，使用本機資料', false); console.warn(e); });
 } else cloudLbl('💾 本機資料');
+}
+/* V6：startApp() 移到第五段程式最後呼叫 */
+</script>
+<style>
+/* ===== V6 ===== */
+#modal{z-index:3000}
+#toast{z-index:3100}
+.lmap{height:max(680px,76vh)}
+.shiptip{background:rgba(255,250,170,.95);border:1px solid #b9a300;border-radius:10px;padding:0 7px;font-size:12px;font-weight:700;color:#10233d;box-shadow:0 1px 3px rgba(0,0,0,.3)}
+.shiptip.p{background:rgba(200,230,255,.95);border-color:#5b8fd1}
+.shiptip small{font-weight:400;color:#556}
+.shiptip .bad{display:inline-block;background:#e53525;color:#fff;border-radius:50%;width:14px;height:14px;line-height:14px;text-align:center;font-size:10px;margin-left:4px}
+.shiptip::before{display:none}
+.lmap.hide-lab .shiptip{display:none}
+.leaflet-interactive.shp{cursor:grab}
+.dragghost{background:rgba(245,179,1,.9);color:#222;border-radius:12px;padding:2px 8px;font-weight:700;font-size:12px;white-space:nowrap;transform:translate(-50%,-140%);box-shadow:0 2px 6px rgba(0,0,0,.3)}
+.mg-tl{position:relative;height:56px;background:#f3f6fa;border:1px solid var(--line);border-radius:8px;margin:8px 0 4px;overflow:hidden}
+.mg-tl .seg{position:absolute;top:16px;height:22px;border-radius:5px;background:#9fb4c7;color:#fff;font-size:11px;line-height:22px;padding:0 4px;white-space:nowrap;overflow:hidden;border:1px solid #6d8399}
+.mg-tl .seg.h{background:#2f6fd6;border-color:#1d4fa6}.mg-tl .seg.t{background:#2e9d5b;border-color:#1d6b3e}.mg-tl .seg.m{background:#d9dee5;color:#6b7785;text-decoration:line-through;border-style:dashed}
+.mg-tl .rng{position:absolute;top:8px;bottom:8px;border:2px solid #f5b301;border-radius:7px;background:rgba(245,179,1,.12)}
+.mg-tl .day{position:absolute;top:0;bottom:0;border-left:1px dashed #c9d2dc;font-size:10px;color:#8a95a3;padding-left:3px}
+.mgt td,.mgt th{vertical-align:middle}
+.mgt tr.in td{background:#fffbe8}
+.mgt tr.h td{background:#e3edfb}.mgt tr.t td{background:#e0f3e8}
+.mgt input[type=radio]{width:18px;height:18px;cursor:pointer}
+@media (max-width:820px){.lmap{height:70vh}}
+</style>
+<script>
+/* ============================================================
+   V6：① 實景地圖改「真實尺寸」繪製（船、船席隨放大而變大，好點選、可直接拖船）
+       ② 示意圖改成與實景同方向（陸地在下、碼頭朝北）
+       ③ 停航合併：同一艘船選「頭」「尾」兩個航次，保留第一張進港＋最後一張出港，
+          中間申請自動註銷（保留紀錄），費用自動重算，可取消合併
+   ============================================================ */
+
+/* ---------- 船席實景座標（依空拍圖判讀，可在地圖上拖曳校正） ---------- */
+Object.assign(BPOS, { S4: [24.41662, 118.28512, -90], SB: [24.41590, 118.28512, -90], CG: [24.41838, 118.29170, 0] });
+const MPD = 111320;
+const offLL = (la, ln, dx, dy) => [la + dy / MPD, ln + dx / (MPD * Math.cos(la * Math.PI / 180))];
+const polyAt = (c, rot, pts) => pts.map(([a, w]) => rot === -90 ? offLL(c[0], c[1], w, a) : offLL(c[0], c[1], a, -w));
+const rectPts = (L, W) => [[-L / 2, -W / 2], [L / 2, -W / 2], [L / 2, W / 2], [-L / 2, W / 2]];
+const hullPts = (L, W) => [[-L / 2, -W / 2], [L / 2 - W * .9, -W / 2], [L / 2, 0], [L / 2 - W * .9, W / 2], [-L / 2, W / 2]];
+const bSize = b => b.cap > 1 ? [72, 26] : b.type === '小三通客輪' ? [62, 16] : [72, 18];
+const sSize = s => s.type === '小三通客船' ? [46, 11] : s.type === '貨船' ? [62, 13] : s.type === '漁船' ? [22, 7] : s.type === '遊艇' ? [16, 6] : [13, 5];
+const MAPVIEW_KEY = 'kmport-mapview-v6';
+const getMV = () => { try { return JSON.parse(localStorage.getItem(MAPVIEW_KEY)); } catch (e) { return null; } };
+const setMV = v => { try { localStorage.setItem(MAPVIEW_KEY, JSON.stringify(v)); } catch (e) {} };
+const getBase = () => { try { return localStorage.getItem('kmport-mapbase') || 'PHOTO2'; } catch (e) { return 'PHOTO2'; } };
+
+buildMap = function (ro) {
+  const el = $('#lmap'); if (!el) return;
+  if (!window.L) { el.outerHTML = `<div class="note">⚠️ 無法載入線上地圖（可能未連網），暫以示意圖顯示。</div>${aerialSVG()}`; return; }
+  dropMap();
+  const m = LMAP = L.map(el, { zoomControl: true, maxZoom: 21, zoomSnap: 0.25 });
+  const mv = getMV();
+  if (mv) m.setView(mv.c, mv.z);
+  else {
+    const pts = ['S4', 'SB', 'S1L', 'S1R', 'S2L', 'S2R', 'S3L', 'S3R'].map(id => berth(id)).filter(Boolean).flatMap(b => { const [la, ln, rot] = bpos(b); const [BL] = bSize(b); return [offLL(la, ln, 0, BL / 2 + 10), offLL(la, ln, 0, -BL / 2 - 20)]; });
+    m.fitBounds(L.latLngBounds(pts.length ? pts : [[24.4160, 118.2848], [24.4170, 118.2885]]), { paddingTopLeft: [20, 30], paddingBottomRight: [20, 80], maxZoom: 19 });
+  }
+  const bl = {}; Object.entries(BASES).forEach(([k, b]) => bl[b.name] = L.tileLayer(b.url, { maxZoom: 21, maxNativeZoom: 19, attribution: b.attr }));
+  bl[BASES[getBase()]?.name || BASES.PHOTO2.name].addTo(m);
+  const shipsL = L.layerGroup().addTo(m), berthL = L.layerGroup().addTo(m), labL = L.layerGroup().addTo(m), schL = L.layerGroup().addTo(m);
+  L.control.layers(bl, { '船舶圖像': shipsL, '船舶名稱': labL, '船席範圍': berthL, '今日排定（虛線）': schL }, { collapsed: window.innerWidth < 820 }).addTo(m);
+  L.control.scale({ imperial: false }).addTo(m);
+  m.on('baselayerchange', e => { const k = Object.keys(BASES).find(k => BASES[k].name === e.name); try { localStorage.setItem('kmport-mapbase', k); } catch (x) {} });
+  m.on('overlayadd overlayremove', e => { if (e.name === '船舶名稱') el.classList.toggle('hide-lab', e.type === 'overlayremove'); });
+  m.on('moveend', () => { if (LMAP !== m) return; const c = m.getCenter(); setMV({ c: [c.lat, c.lng], z: m.getZoom() }); });
+  const staff = !ro && isStaff();
+  const shipPolys = {};
+  S.berths.filter(b => b.port === '水頭').forEach(b => {
+    const [la, ln, rot] = bpos(b); const st = berthState(b); const [BL, BW] = bSize(b);
+    const col = { free: '#2e9d5b', sch: '#e0a100', part: '#e07b00', full: '#d64545' }[st.state];
+    const area = L.polygon(polyAt([la, ln], rot, rectPts(BL, BW)), { color: MAPSEL === b.id ? '#ffeb3b' : col, weight: MAPSEL === b.id ? 4 : 2, fillColor: col, fillOpacity: .22, dashArray: st.state === 'free' ? '6 4' : null }).addTo(berthL);
+    area.on('click', () => { if (ro) area.bindPopup(berthPopup(b)).openPopup(); else selBerth(b.id); });
+    // 船席名稱標籤（在船席靠陸地那一端）；「調整船席位置」時可拖曳
+    const lp = rot === -90 ? offLL(la, ln, 0, -BL / 2 - 5) : offLL(la, ln, -BL / 2 - 5, 0);
+    const bm = L.marker(lp, { draggable: staff && BERTH_EDIT, icon: L.divIcon({ className: '', html: `<div class="lb ${MAPSEL === b.id ? 'sel' : ''}" data-bid="${b.id}" style="--c:${col}">${esc(b.name)}${st.sch.length ? ' ⏱' + st.sch.length : ''}</div>`, iconSize: [0, 0] }) }).addTo(berthL);
+    bm.on('click', () => { if (ro) bm.bindPopup(berthPopup(b)).openPopup(); else selBerth(b.id); });
+    bm.on('dragend', e => { const p = e.target.getLatLng(); const c = rot === -90 ? [p.lat + (BL / 2 + 5) / MPD, p.lng] : [p.lat, p.lng + (BL / 2 + 5) / (MPD * Math.cos(p.lat * Math.PI / 180))]; S.berthPos = S.berthPos || {}; S.berthPos[b.id] = [c[0], c[1], rot]; log('校正船席位置', b.name, `${c[0].toFixed(6)}, ${c[1].toFixed(6)}`); save(); render(); toast(`已更新「${esc(b.name)}」位置`); });
+    const draw = (v, i, n, sch) => {
+      const s = ship(v.shipId); const [SL, SW] = sSize(s);
+      const off = n > 1 ? (i - (n - 1) / 2) * Math.min(BL / n, SL + 3) : 0;
+      const c = rot === -90 ? offLL(la, ln, 0, off) : offLL(la, ln, off, 0);
+      const late = !sch && v.outTime < Date.now();
+      const fill = SHIPC[s.type] || '#ccc';
+      const poly = L.polygon(polyAt(c, rot, hullPts(SL, SW)), { color: sch ? '#ffffff' : '#0b2a4a', weight: sch ? 2 : 1.2, dashArray: sch ? '4 3' : null, fillColor: fill, fillOpacity: sch ? .45 : .95, className: staff ? 'shp' : '' }).addTo(sch ? schL : shipsL);
+      const dir = /L$/.test(b.id) ? 'left' : /R$/.test(b.id) ? 'right' : 'top';
+      const tip = L.tooltip({ permanent: true, direction: dir, className: 'shiptip' + (sch ? ' p' : ''), offset: dir === 'left' ? [-6, 0] : dir === 'right' ? [6, 0] : [0, -6], interactive: true })
+        .setLatLng(c).setContent(`${esc(s.name)}<small>»${esc(agent(s))}</small>${late ? '<span class="bad">!</span>' : ''}${sch ? ` <small>${fmtT(v.inTime)}</small>` : ''}`);
+      labL.addLayer(tip);
+      poly.bindPopup(shipPopup(v, ro));
+      tip.on('click', () => poly.openPopup(c));
+      shipPolys[v.id] = { poly, c };
+      if (staff) enableShipDrag(m, poly, v, b);
+    };
+    st.occ.forEach((v, i) => draw(v, i, st.occ.length, false));
+    if (!st.occ.length || b.cap > 1) st.sch.forEach((v, i) => draw(v, i, st.sch.length, true));
+  });
+  const Search = L.Control.extend({ onAdd() {
+    const d = L.DomUtil.create('div', 'lsearch');
+    d.innerHTML = `<span>🔎</span><select id="lsBerth"><option value="">船席</option>${S.berths.filter(b => b.port === '水頭').map(b => `<option value="${b.id}">${esc(b.name)}</option>`).join('')}</select><input id="lsShip" placeholder="船名">${staff ? `<label class="small"><input type="checkbox" id="lsEdit" ${BERTH_EDIT ? 'checked' : ''}> 調整船席位置</label>` : ''}<button class="btn s" id="lsHome" title="回到碼頭全景">⌂</button>`;
+    L.DomEvent.disableClickPropagation(d); L.DomEvent.disableScrollPropagation(d);
+    setTimeout(() => {
+      $('#lsBerth').onchange = e => { const b = berth(e.target.value); if (b) { m.flyTo(bpos(b).slice(0, 2), 19.5); if (!ro) setTimeout(() => selBerth(b.id), 900); } };
+      $('#lsShip').onchange = e => { const q = e.target.value.trim(); const v = S.voyages.find(x => x.status === '通過' && (x.move === '靠泊' || x.move === '預報') && ship(x.shipId).name.includes(q) && shipPolys[x.id]); if (!v) { toast('目前港內查無此船'); return; } m.flyTo(shipPolys[v.id].c, 19.5); setTimeout(() => { if (LMAP === m) shipPolys[v.id].poly.openPopup(shipPolys[v.id].c); }, 900); };
+      $('#lsHome').onclick = () => { setMV(null); render(); };
+      const ed = $('#lsEdit'); if (ed) ed.onchange = e => { BERTH_EDIT = e.target.checked; render(); toast(BERTH_EDIT ? '可拖曳船席名稱標籤到正確位置，放開即儲存' : '已關閉位置調整'); };
+    });
+    return d; } });
+  new Search({ position: 'bottomleft' }).addTo(m);
+  setTimeout(() => { if (LMAP === m) m.invalidateSize(); }, 50);
+};
+// 在地圖上直接拖船：按住船拖到別的船席放開（滑鼠）
+function enableShipDrag(m, poly, v, b) {
+  poly.on('mousedown', e => {
+    if (e.originalEvent.button !== 0) return;
+    L.DomEvent.stop(e.originalEvent); m.dragging.disable();
+    const start = e.containerPoint; let moved = false;
+    const ghost = L.marker(e.latlng, { interactive: false, icon: L.divIcon({ className: '', html: `<div class="dragghost">🚢 ${esc(ship(v.shipId).name)}</div>`, iconSize: [0, 0] }) });
+    const mm = ev => { if (!moved && ev.containerPoint.distanceTo(start) > 6) { moved = true; ghost.addTo(m); } if (moved) ghost.setLatLng(ev.latlng); };
+    const up = ev => {
+      m.off('mousemove', mm); document.removeEventListener('mouseup', upDoc); m.dragging.enable();
+      if (!moved) { poly.openPopup(e.latlng); return; }
+      const ll = ev.latlng || ghost.getLatLng(); ghost.remove();
+      const nb = nearestBerth(m, ll);
+      if (nb && nb.id !== b.id) dockShip(v.id, nb.id); else toast(nb ? '仍在原船席' : '請拖到船席附近（約 80 公尺內）');
+    };
+    const upDoc = ev => up({ latlng: m.mouseEventToLatLng(ev) });
+    m.on('mousemove', mm); document.addEventListener('mouseup', upDoc, { once: true });
+  });
+}
+
+/* ---------- 示意圖：與實景同方向（北在上、陸地在下、碼頭朝北） ---------- */
+const SCH = { S4: [128, 238, 40, 112], SB: [128, 368, 40, 112], S1L: [276, 292, 40, 160], S1R: [344, 292, 40, 160], S2L: [426, 292, 40, 160], S2R: [494, 292, 40, 160],
+  S3L: [576, 292, 40, 160], S3R: [644, 292, 40, 160], NB: [722, 40, 40, 150], CG: [800, 252, 180, 42], EB: [812, 110, 170, 52], EY: [812, 176, 170, 44] };
+aerialSVG = function () {
+  const R = rng(11);
+  let tex = '';
+  for (let i = 0; i < 70; i++) { const x = R() * 770, y = 520 + R() * 115; if (x > 370 && x < 630 && y < 615) continue; tex += `<rect x="${x}" y="${y}" width="${8 + R() * 24}" height="${6 + R() * 16}" fill="hsl(${30 + R() * 30},${10 + R() * 20}%,${55 + R() * 25}%)" opacity=".9"/>`; }
+  for (let i = 0; i < 40; i++) { const x = 800 + R() * 190, y = 320 + R() * 310; tex += `<rect x="${x}" y="${y}" width="${8 + R() * 20}" height="${6 + R() * 16}" fill="hsl(${30 + R() * 30},12%,${58 + R() * 20}%)"/>`; }
+  for (let i = 0; i < 55; i++) { const x = R() * 770, y = 525 + R() * 110; tex += `<circle cx="${x}" cy="${y}" r="${4 + R() * 8}" fill="hsl(${95 + R() * 30},35%,${28 + R() * 14}%)" opacity=".85"/>`; }
+  let waves = ''; for (let i = 0; i < 90; i++) { const x = R() * 1000, y = R() * 480; waves += `<path d="M${x} ${y} q8 -4 16 0" stroke="#fff" stroke-opacity=".18" fill="none"/>`; }
+  let park = ''; for (let r = 0; r < 3; r++) for (let c = 0; c < 8; c++) park += `<rect x="${648 + c * 14}" y="${548 + r * 22}" width="10" height="16" fill="${R() < .6 ? ['#c33','#eee','#246','#888','#dd3'][Math.floor(R() * 5)] : 'none'}" stroke="#ddd" stroke-width=".6"/>`;
+  const berths = S.berths.filter(b => b.port === '水頭').map(b => {
+    const g = SCH[b.id] || [b.x ?? 900, b.y ?? 400, b.w || 70, b.h || 32];
+    const bb = { ...b, x: g[0], y: g[1], w: g[2], h: g[3] };
+    const st = berthState(b); const col = { free: '#2e9d5b', sch: '#e0a100', part: '#e07b00', full: '#d64545' }[st.state];
+    const vert = bb.h > bb.w;
+    const shipsHere = st.occ.map((v, i) => shipIcon(bb, v, i, vert)).join('');
+    const ly = vert ? bb.y + bb.h + 14 : bb.y - 5;
+    return `<g class="berth ${MAPSEL === b.id ? 'sel' : ''}" data-bid="${b.id}" onclick="selBerth('${b.id}')"><rect class="b" x="${bb.x}" y="${bb.y}" width="${bb.w}" height="${bb.h}" rx="4" fill="${col}" fill-opacity=".35" stroke="${col}" stroke-width="2"/>${shipsHere}
+      <text x="${bb.x + bb.w / 2}" y="${ly}" text-anchor="middle" font-size="12" font-weight="700" fill="#fff" stroke="#0b2a4a" stroke-width="3" paint-order="stroke">${esc(b.name)}${st.sch.length ? ' ⏱' + st.sch.length : ''}</text></g>`;
+  }).join('');
+  return `<svg viewBox="0 0 1000 640" xmlns="http://www.w3.org/2000/svg">
+  <defs><linearGradient id="sea6" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#174f78"/><stop offset="1" stop-color="#2f7fa8"/></linearGradient>
+  <linearGradient id="sand6" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#e3d6ad"/><stop offset="1" stop-color="#cbbd94"/></linearGradient></defs>
+  <rect width="1000" height="640" fill="url(#sea6)"/>${waves}
+  <path d="M0 640 V512 Q120 500 240 506 Q400 516 560 504 Q680 498 778 506 V300 H1000 V640 Z" fill="#7d8f63"/>
+  <path d="M0 512 Q120 500 240 506 Q400 516 560 504 Q680 498 778 506 L778 518 Q680 510 560 516 Q400 528 240 518 Q120 512 0 524Z" fill="url(#sand6)"/>
+  <rect x="778" y="296" width="222" height="10" fill="url(#sand6)"/>
+  ${tex}
+  <path d="M0 628 L780 620" stroke="#bfb9ad" stroke-width="9"/><path d="M500 640 V615" stroke="#bfb9ad" stroke-width="7"/><path d="M880 640 V320" stroke="#bfb9ad" stroke-width="8"/>
+  <rect x="370" y="534" width="250" height="78" fill="#e9ecef" stroke="#9aa"/><rect x="380" y="544" width="230" height="58" fill="#cfd8dc"/><text x="495" y="579" text-anchor="middle" font-size="14" fill="#33424f" font-weight="700">旅客服務中心</text>
+  <rect x="640" y="540" width="124" height="76" fill="#5f6b73" opacity=".7"/>${park}<text x="702" y="535" text-anchor="middle" font-size="11" fill="#fff">停車場</text>
+  <rect x="104" y="226" width="22" height="290" fill="#d7d2c4" stroke="#8d8676"/>
+  ${[320, 470, 620].map(x => `<rect x="${x}" y="280" width="20" height="230" fill="#d7d2c4" stroke="#8d8676"/>`).join('')}
+  <rect x="766" y="16" width="24" height="292" fill="#9c9c9c"/><rect x="772" y="16" width="12" height="292" fill="#bdbdbd" stroke-dasharray="4 3"/>
+  <rect x="802" y="104" width="6" height="128" fill="#c9c2b0"/>
+  <text x="300" y="40" text-anchor="middle" font-size="13" fill="#e3f2ff" font-weight="700">⇡ 港口出入口（往北）</text>
+  <text x="975" y="30" text-anchor="end" font-size="14" fill="#e3f2ff" font-weight="700">N ↑</text>
+  <text x="20" y="630" font-size="11" fill="#fff" opacity=".85">※ 示意圖，方位與實景地圖相同（北在上）</text>
+  ${berths}</svg>`;
+};
+</script>
+<script>
+/* ---------- 停航合併（選頭尾） ---------- */
+let MG = {};
+const mgCands = sid => S.voyages.filter(v => v.shipId === sid && ['通過', '待審'].includes(v.status) && !v.actualOut && v.inTime > dayStart(-10)).sort((a, b) => a.inTime - b.inTime);
+function mergeTool(vid) {
+  if (!isStaff()) { toast('停航合併需港務處人員'); return; }
+  const v = vid ? voy(vid) : null;
+  const ships = S.ships.filter(s => mgCands(s.id).length >= 2);
+  const sid = v && mgCands(v.shipId).length >= 2 ? v.shipId : (VY.ship && mgCands(VY.ship).length >= 2 ? VY.ship : ships[0]?.id);
+  if (!sid) { toast('目前沒有可合併的航次（同一艘船需有 2 個以上未出港航次）'); return; }
+  const c = mgCands(sid);
+  MG = { ship: sid, head: v && v.shipId === sid ? v.id : c[0].id, tail: c[c.length - 1].id, reason: '天候因素停航' };
+  if (MG.head === MG.tail) MG.tail = c[c.length - 1].id;
+  mergeModal();
+}
+function mgPick(k, id) { MG[k] = id; const c = mgCands(MG.ship); const hi = c.findIndex(v => v.id === MG.head), ti = c.findIndex(v => v.id === MG.tail); if (ti <= hi) { if (k === 'head') MG.tail = c[Math.min(hi + 1, c.length - 1)].id; else MG.head = c[Math.max(ti - 1, 0)].id; } mergeModal(); }
+function mergeModal() {
+  const c = mgCands(MG.ship); const s = ship(MG.ship);
+  const h = voy(MG.head), t = voy(MG.tail);
+  const hi = c.indexOf(h), ti = c.indexOf(t);
+  const mids = c.filter((v, i) => i > hi && i <= ti);
+  const ships = S.ships.filter(x => mgCands(x.id).length >= 2);
+  const keepLeave = t ? appsOf(t.id, '出港').find(a => a.status !== '註銷') : null;
+  const keepIn = h ? appsOf(h.id, '進港').find(a => a.status !== '註銷') : null;
+  const cancelApps = mids.flatMap(v => appsOf(v.id)).filter(a => a !== keepLeave && a.status !== '註銷').length + (keepLeave ? appsOf(h.id, '出港').filter(a => a.status !== '註銷').length : 0);
+  const fee = h && t ? feeOf({ ...h, outTime: t.outTime, actualOut: null, status: '通過' }) : null;
+  const span = h && t ? Math.round((t.outTime - (h.actualIn || h.inTime)) / 3600e3) : 0;
+  // 時間軸
+  const t0 = Math.min(...c.map(v => v.inTime)) - 2 * 3600e3, t1 = Math.max(...c.map(v => v.outTime)) + 2 * 3600e3, W = t1 - t0;
+  const px = x => ((x - t0) / W * 100).toFixed(2) + '%';
+  let days = ''; for (let d = dayStart(Math.floor((t0 - dayStart(0)) / 864e5) + 1); d < t1; d += 864e5) days += `<div class="day" style="left:${px(d)}">${fmtD(d).slice(5)}</div>`;
+  const tl = `<div class="mg-tl">${days}${h && t ? `<div class="rng" style="left:${px(h.actualIn || h.inTime)};width:calc(${px(t.outTime)} - ${px(h.actualIn || h.inTime)})"></div>` : ''}
+    ${c.map((v, i) => `<div class="seg ${v === h ? 'h' : v === t ? 't' : i > hi && i < ti ? 'm' : ''}" style="left:${px(v.actualIn || v.inTime)};width:max(6px,calc(${px(v.outTime)} - ${px(v.actualIn || v.inTime)}))" title="${v.code} ${fmtS(v.inTime)}～${fmtS(v.outTime)}">${v.code.split('-').pop()}</div>`).join('')}</div>
+    <div class="small muted">藍＝頭（保留進港）、綠＝尾（保留出港）、灰色虛線＝中間被併入、黃框＝合併後的靠泊期間</div>`;
+  modal(`🔗 停航合併：${esc(s.name)}`, `
+  <div class="note">船舶停航或故障在港多停幾天，中間又申請了好幾次進出港時使用：只要選<b>「頭」</b>（實際進港那一次）和<b>「尾」</b>（真正出港那一次），系統會<b>保留第一張進港申請＋最後一張出港申請</b>，中間的申請自動註銷（紀錄保留、可取消合併），碇泊費依整段靠泊時間自動重算。</div>
+  <div class="flex" style="margin-bottom:6px"><b>船舶</b><select class="btn" onchange="MG.ship=this.value;const c=mgCands(this.value);MG.head=c[0].id;MG.tail=c[c.length-1].id;mergeModal()">${ships.map(x => `<option value="${x.id}" ${x.id === MG.ship ? 'selected' : ''}>${esc(x.name)}（${mgCands(x.id).length} 個未出港航次）</option>`).join('')}</select>
+  <b>原因</b><select class="btn" onchange="MG.reason=this.value">${['天候因素停航', '船舶故障維修', '港口管制', '其他'].map(r => `<option ${MG.reason === r ? 'selected' : ''}>${r}</option>`).join('')}</select></div>
+  ${tl}
+  <div class="tbl"><table class="mgt"><tr><th>頭</th><th>尾</th><th>航次</th><th>預定進港</th><th>預定出港</th><th>船席</th><th>進港申請</th><th>出港申請</th><th>合併後</th></tr>
+  ${c.map((v, i) => { const ia = appsOf(v.id, '進港').find(a => a.status !== '註銷'), oa = appsOf(v.id, '出港').find(a => a.status !== '註銷');
+    const role = v === h ? '<b style="color:#1f4e8c">保留進港</b>' : v === t ? '<b style="color:#1d6b3e">保留出港</b>' : i > hi && i < ti ? '<span style="color:#a12f2f">併入（註銷）</span>' : '<span class="muted">不受影響</span>';
+    return `<tr class="${v === h ? 'h' : v === t ? 't' : i > hi && i < ti ? 'in' : ''}"><td><input type="radio" name="mgH" ${v === h ? 'checked' : ''} onclick="mgPick('head','${v.id}')" ${i === c.length - 1 ? 'disabled' : ''}></td><td><input type="radio" name="mgT" ${v === t ? 'checked' : ''} onclick="mgPick('tail','${v.id}')" ${i === 0 ? 'disabled' : ''}></td>
+    <td>${v.code}${v.move === '靠泊' ? ' <span class="tag t-ok">靠泊中</span>' : ''}</td><td>${fmtS(v.inTime)}</td><td>${fmtS(v.outTime)}</td><td>${esc(berth(v.berthId)?.name || '—')}</td><td>${ia ? ia.no + ' ' + tag(ia.status) : '—'}</td><td>${oa ? oa.no + ' ' + tag(oa.status) : '—'}</td><td>${role}</td></tr>`; }).join('')}</table></div>
+  ${h && t ? `<div class="note" style="margin-top:10px;background:#eef6ff;border-color:#bcd4f5">合併結果：<b>${h.code}</b> 進港 ${fmtS(h.actualIn || h.inTime)} → 出港 <b>${fmtS(t.outTime)}</b>（次一港 ${esc(t.nextPort)}），在港約 <b>${Math.floor(span / 24)} 天 ${span % 24} 小時</b><br>
+  保留：進港申請 ${keepIn ? keepIn.no : '（無）'}＋出港申請 ${keepLeave ? keepLeave.no + '（由 ' + t.code + ' 移過來）' : '（沿用頭航次的出港申請並改時間）'}；自動註銷 <b>${cancelApps}</b> 張申請、併入 <b>${mids.length}</b> 個航次<br>
+  碇泊費＋垃圾清理費：<b>${money(fee.total)} 元</b>（${fee.hours} 小時 × 費率 ${fee.rate}）</div>` : ''}`,
+  `<button class="btn" onclick="closeModal()">取消</button><button class="btn p" onclick="applyMerge()" ${h && t && ti > hi ? '' : 'disabled'}>確認合併</button>`, true);
+}
+function applyMerge() {
+  const c = mgCands(MG.ship); const h = voy(MG.head), t = voy(MG.tail);
+  const hi = c.indexOf(h), ti = c.indexOf(t);
+  if (!h || !t || ti <= hi) { toast('請選擇頭與尾'); return; }
+  const mids = c.filter((v, i) => i > hi && i <= ti);
+  const undo = { outTime: h.outTime, nextPort: h.nextPort, remark: h.remark, vs: mids.map(v => ({ id: v.id, status: v.status, remark: v.remark || '' })), apps: [] };
+  const keepLeave = appsOf(t.id, '出港').find(a => a.status !== '註銷');
+  const mark = (a, reason) => { undo.apps.push({ id: a.id, status: a.status, reason: a.reason || '', voyageId: a.voyageId, f: { outTime: a.f.outTime, nextPort: a.f.nextPort } }); a.status = '註銷'; a.reason = reason; };
+  mids.forEach(v => appsOf(v.id).forEach(a => { if (a !== keepLeave && a.status !== '註銷') mark(a, `停航合併：併入 ${h.code}`); }));
+  appsOf(h.id, '出港').filter(a => a.status !== '註銷').forEach(a => {
+    if (keepLeave) mark(a, `停航合併：改用 ${t.code} 的出港申請`);
+    else { undo.apps.push({ id: a.id, status: a.status, reason: a.reason || '', voyageId: a.voyageId, f: { outTime: a.f.outTime, nextPort: a.f.nextPort } }); a.f.outTime = t.outTime; a.f.nextPort = t.nextPort; }
+  });
+  if (keepLeave) { undo.apps.push({ id: keepLeave.id, status: keepLeave.status, reason: keepLeave.reason || '', voyageId: keepLeave.voyageId, f: { outTime: keepLeave.f.outTime, nextPort: keepLeave.f.nextPort } }); keepLeave.voyageId = h.id; }
+  mids.forEach(v => { v.status = '停航取消'; v.remark = `${MG.reason}：併入 ${h.code}`; v.mergedInto = h.id; });
+  h.outTime = t.outTime; h.nextPort = t.nextPort; h.remark = `${MG.reason}：合併至 ${t.code}（共 ${mids.length + 1} 航次）`;
+  h.merge = { at: Date.now(), by: me().name, reason: MG.reason, tail: t.code, ids: mids.map(v => v.id), undo };
+  log('停航合併', `${ship(h.shipId).name} ${h.code}`, `頭 ${h.code}、尾 ${t.code}；註銷 ${undo.apps.filter(x => S.apps.find(a => a.id === x.id)?.status === '註銷').length} 張申請；出港改為 ${fmt(t.outTime)}`);
+  save(); closeModal(); render();
+  toast(`✔ 已合併：${esc(ship(h.shipId).name)} 保留第一張進港＋最後一張出港，中間申請已註銷，費用已重算`, 'ok');
+}
+function undoMerge(hid) {
+  const h = voy(hid); const u = h?.merge?.undo; if (!u) return;
+  if (!confirm(`取消 ${h.code} 的停航合併，恢復成合併前的各航次與申請？`)) return;
+  h.outTime = u.outTime; h.nextPort = u.nextPort; h.remark = u.remark;
+  u.vs.forEach(x => { const v = voy(x.id); if (v) { v.status = x.status; v.remark = x.remark; delete v.mergedInto; } });
+  u.apps.forEach(x => { const a = S.apps.find(y => y.id === x.id); if (a) { a.status = x.status; a.reason = x.reason; a.voyageId = x.voyageId; Object.assign(a.f, x.f); } });
+  delete h.merge; log('取消停航合併', `${ship(h.shipId).name} ${h.code}`); save(); render(); toast('已取消合併，恢復原本的航次與申請', 'ok');
+}
+
+/* ---------- 航次管理頁（加入合併） ---------- */
+VIEWS.voyage = () => {
+  const ro = !canEdit(); const staff = isStaff() && !ro;
+  let vs = visibleVoyages().filter(v => v.inTime >= dayStart(VY.from));
+  if (VY.ship) vs = vs.filter(v => v.shipId === VY.ship);
+  vs.sort((a, b) => a.inTime - b.inTime);
+  return `<div class="title"><h2>航次管理</h2><span class="sub">航次＝一次「進港＋出港」｜編碼：船舶代碼－民國年－當年流水，另顯示累計航次</span><div class="sp"></div>${staff ? `<button class="btn p" onclick="mergeTool()">🔗 停航合併（選頭尾）</button>` : ''}</div>
+  <div class="note"><b>船停航、故障多停幾天怎麼辦？</b>按「🔗 停航合併」→ 選這艘船的<b>頭</b>（實際進港那次）和<b>尾</b>（真正出港那次）→ 確認。系統保留第一張進港＋最後一張出港申請，中間的自動註銷（可取消合併），碇泊費自動依整段時間重算。<br>
+  只是延後出港、後面沒有其他申請時，用該列的「延後出港」即可。</div>
+  <div class="bar"><select onchange="VY.ship=this.value;render()"><option value="">全部船舶</option>${visibleShips().map(s => `<option value="${s.id}" ${VY.ship === s.id ? 'selected' : ''}>${esc(s.name)}</option>`).join('')}</select>
+  <select onchange="VY.from=+this.value;render()">${[[-3, '近 3 天起'], [-7, '近 7 天起'], [-30, '近 30 天起']].map(o => `<option value="${o[0]}" ${VY.from === o[0] ? 'selected' : ''}>${o[1]}</option>`).join('')}</select>
+  <button class="btn" onclick="VY.ship=S.ships.find(s=>s.code==='XDF')?.id||'';render()">🔎 看新東方案例</button></div>
+  <div class="tbl"><table><tr><th>航次編碼</th><th class="num">累計</th><th>船名</th><th>預定進港</th><th>預定出港</th><th>實際進港</th><th>實際出港</th><th>船席</th><th>狀態</th><th>動態</th><th class="num">計費(元)</th><th></th></tr>
+  ${vs.map(v => { const f = feeOf(v); const into = v.mergedInto ? voy(v.mergedInto) : null; const canM = staff && v.status === '通過' && v.move !== '已出港' && mgCands(v.shipId).filter(x => x.inTime > v.inTime).length;
+    return `<tr style="${v.status === '停航取消' ? 'opacity:.6' : ''}${v.merge ? ';background:#eef6ff' : ''}"><td>${v.code}${v.merge ? `<div><span class="tag t-info">🔗 合併 ${v.merge.ids.length + 1} 航次</span></div>` : ''}</td><td class="num">${v.cum}</td><td>${esc(ship(v.shipId).name)}</td><td>${fmtS(v.inTime)}</td><td>${fmtS(v.outTime)}</td><td>${fmtS(v.actualIn)}</td><td>${fmtS(v.actualOut)}</td><td>${esc(berth(v.berthId)?.name || '—')}</td>
+    <td>${tag(v.status)}${into ? `<div class="small muted">已併入 ${into.code}</div>` : v.remark ? `<div class="small muted">${esc(v.remark)}</div>` : ''}</td><td>${tag(v.move)}</td><td class="num">${f.total ? money(f.total) : '—'}</td>
+    <td style="white-space:nowrap">${staff && v.status === '通過' && v.move !== '已出港' ? `<button class="btn s" onclick="openShift('${v.id}')">延後出港</button>` : ''}${canM ? `<button class="btn s" onclick="mergeTool('${v.id}')">🔗 合併</button>` : ''}${staff && v.merge && !v.actualOut ? `<button class="btn r s" onclick="undoMerge('${v.id}')">取消合併</button>` : ''}</td></tr>`; }).join('') || '<tr><td colspan="12" class="empty">查無資料</td></tr>'}</table></div>`;
+};
+// 船舶彈窗、航次異動視窗加上「停航合併」入口
+const _shipPopup6 = shipPopup;
+shipPopup = function (v, ro) { const h = _shipPopup6(v, ro); return !ro && isStaff() && mgCands(v.shipId).filter(x => x.inTime > v.inTime).length ? h + `<div style="margin-top:6px"><button class="btn s" onclick="mergeTool('${v.id}')">🔗 停航合併（選頭尾）</button></div>` : h; };
+const _openShift6 = openShift;
+openShift = function (id) {
+  _openShift6(id); const v = voy(id);
+  if (v && mgCands(v.shipId).filter(x => x.inTime > v.inTime).length) $('#modal .mbody')?.insertAdjacentHTML('afterbegin', `<div class="note" style="background:#eef6ff;border-color:#bcd4f5">💡 這艘船後面還有其他進出港申請。若要「只保留頭和尾」，建議改用 <button class="btn p s" onclick="closeModal();mergeTool('${id}')">🔗 停航合併（選頭尾）</button></div>`);
+};
+const _about6 = showAbout;
+showAbout = function () { _about6(); $('#modal .mbody')?.insertAdjacentHTML('afterbegin', `<div class="note"><b>V6</b>：實景地圖改真實尺寸（船與船席隨放大變大、可直接拖船移泊）；示意圖改成與實景同方向；新增「停航合併（選頭尾）」。</div>`); };
+
+/* ---------- 啟動 ---------- */
+startApp();
 </script>
 </body>
 </html>
