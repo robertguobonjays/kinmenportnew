@@ -148,7 +148,7 @@ td.num,th.num{text-align:right}
 <header>
   <button class="hbtn" id="menuBtn" onclick="document.querySelector('nav').classList.toggle('open')">☰</button>
   <div class="logo">⚓</div>
-  <h1>金門港 新港埠資訊系統</h1><span class="demo">DEMO V4</span>
+  <h1>金門港 新港埠資訊系統</h1><span class="demo">DEMO V5</span>
   <div class="sp"></div>
   <span id="cloudLbl" class="small" title="資料儲存位置"></span><span id="dateLbl" class="small"></span>
   <select id="userSel" title="切換登入身分（展示權限控管）"></select>
@@ -167,7 +167,7 @@ td.num,th.num{text-align:right}
    - 資料存在瀏覽器（localStorage），「重設資料」可回到初始狀態
    - 所有資料皆為展示用模擬資料
    ============================================================ */
-const KEY = 'kmport-demo-v4';
+const KEY = 'kmport-demo-v5';
 const $ = s => document.querySelector(s);
 const pad = n => String(n).padStart(2, '0');
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -2040,8 +2040,8 @@ selBerth = function (id) { MAPSEL = id; const p = $('#berthPanel'); if (p && LMA
    ② 雲端資料庫（選用）：填入 Supabase 的網址與金鑰後，所有人看到同一份資料
    ============================================================ */
 const CLOUD = {
-  url: '',   // 例：https://abcdefgh.supabase.co   （Supabase › Project Settings › API › Project URL）
-  key: '',   // anon public key（Supabase › Project Settings › API › anon public）
+  url: 'https://wcpoxkxlrvdkexecklwj.supabase.co',   // 例：https://abcdefgh.supabase.co   （Supabase › Project Settings › API › Project URL）
+  key: 'sb_publishable_H4q-LYty0ak6BvbQ3q4VgA_rXodocXU',   // anon public key（Supabase › Project Settings › API › anon public）
   id: 'kinmen-demo',
 };
 const cloudOn = () => !!(CLOUD.url && CLOUD.key);
