@@ -146,7 +146,7 @@ td.num,th.num{text-align:right}
 <header>
   <button class="hbtn" id="menuBtn" onclick="document.querySelector('nav').classList.toggle('open')">☰</button>
   <div class="logo">⚓</div>
-  <h1>金門港 新港埠資訊系統</h1><span class="demo">DEMO</span>
+  <h1>金門港 新港埠資訊系統</h1><span class="demo">DEMO V2</span>
   <div class="sp"></div>
   <span id="dateLbl" class="small"></span>
   <select id="userSel" title="切換登入身分（展示權限控管）"></select>
@@ -165,7 +165,7 @@ td.num,th.num{text-align:right}
    - 資料存在瀏覽器（localStorage），「重設資料」可回到初始狀態
    - 所有資料皆為展示用模擬資料
    ============================================================ */
-const KEY = 'kmport-demo-v1';
+const KEY = 'kmport-demo-v2';
 const $ = s => document.querySelector(s);
 const pad = n => String(n).padStart(2, '0');
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -333,7 +333,7 @@ function save() { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e
 function resetDemo() {
   if (!confirm('確定要清除所有修改，回到初始展示資料？')) return;
   try { localStorage.removeItem(KEY); } catch (e) {}
-  load(); save(); go('dash'); toast('已重設為初始展示資料', 'ok');
+  load(); migrateV2(); save(); go('dash'); toast('已重設為初始展示資料', 'ok');
 }
 function log(action, target, detail = '') { S.logs.unshift({ time: Date.now(), user: me().name, action, target, detail }); if (S.logs.length > 800) S.logs.length = 800; }
 
@@ -454,7 +454,8 @@ $('#userSel').onchange = e => { S.cur = e.target.value; save(); toast(`已切換
 function render() { renderNav(); ($('#view').innerHTML = (VIEWS[VIEW] || VIEWS.dash)()); AFTER[VIEW] && AFTER[VIEW](); }
 const AFTER = {};
 function showAbout() {
-  modal('關於此 DEMO', `<p><b>新港埠資訊系統 DEMO V1</b>，依 115/10/05 港務處需求討論、舊系統功能盤點及 RFP 草案製作，用於展示新系統操作概念。</p>
+  modal('關於此 DEMO', `<p><b>新港埠資訊系統 DEMO V2</b>，依 115/10/05 港務處需求討論、舊系統功能盤點及 RFP 草案製作，用於展示新系統操作概念。</p>
+  <p><b>V2 新增：</b>舊系統進出港相關功能完整納入——進港預報／進港／移泊／出港預報／出港五種申請（欄位依舊系統）、審核中心（自動檢核）、出港移民署檢查、9 段船舶動態、今日船席、拖船作業與曳船費、港勤服務（加水／加油／垃圾清運／船舶小修）、港灣費用（碇泊費／垃圾清理費／曳船費／加水費／帳單附件）、航次統計、對口港／危險品／加成／系統參數。</p>
   <ul><li>所有資料皆為<b>模擬資料</b>，修改會保存在這台電腦的瀏覽器，按右上角「重設資料」可還原。</li>
   <li>右上角可切換登入身分（管理者、審核員、航商、小船業者、海關），展示「資料範圍權限」。</li>
   <li>空拍圖為系統隨機產生的示意圖，正式版將改用港務處提供之水頭港空拍圖。</li>
@@ -468,7 +469,8 @@ const VIEWS = {};
 /* ---------------- 首頁 */
 VIEWS.dash = () => {
   const vs = visibleVoyages(); const t0 = dayStart(0), t1 = dayStart(1);
-  const pend = vs.filter(v => v.status === '待審');
+  const vids = new Set(visibleShips().map(s => s.id));
+  const pend = S.apps.filter(a => a.status === '待審' && vids.has(a.shipId)).sort((x, y) => appTime(x) - appTime(y));
   const todayIn = vs.filter(v => v.status === '通過' && v.inTime >= t0 && v.inTime < t1);
   const atBerth = vs.filter(v => v.status === '通過' && v.move === '靠泊');
   const out = vs.filter(v => v.actualOut >= t0 && v.actualOut < t1);
@@ -485,7 +487,7 @@ VIEWS.dash = () => {
   if (staff) fl.filter(f => f.status !== '正常').forEach(f => alerts.push(`⛴️ ${fmtT(f.time)} ${esc(ship(f.shipId).name)} ${f.from}→${f.to} ${f.status}`));
   return `<div class="title"><h2>首頁儀表板</h2><span class="sub">您好，${esc(u.name)}（${esc(u.role)}）${u.company ? '｜僅顯示「' + esc(u.company) + '」的資料' : ''}</span></div>
   <div class="kpis">
-    <div class="kpi ${pend.length ? 'warn' : ''}" onclick="go('apply','待審')"><div class="n">${pend.length}</div><div class="l">待審核進出港申請</div></div>
+    <div class="kpi ${pend.length ? 'warn' : ''}" onclick="go(${staff} ? 'review' : 'apply')"><div class="n">${pend.length}</div><div class="l">待審核進出港申請</div></div>
     <div class="kpi" onclick="go('moving')"><div class="n">${todayIn.length}</div><div class="l">今日預定進港航次</div></div>
     <div class="kpi" onclick="go(${staff} ? 'map' : 'voyage')"><div class="n">${atBerth.length}</div><div class="l">目前靠泊中</div></div>
     <div class="kpi" onclick="go('moving')"><div class="n">${out.length}</div><div class="l">今日已出港</div></div>
@@ -493,7 +495,7 @@ VIEWS.dash = () => {
     ${allowed('billing') ? `<div class="kpi ${myBills.length ? 'warn' : ''}" onclick="go('billing','bills')"><div class="n">${myBills.length}</div><div class="l">未繳帳單</div></div>` : ''}
   </div>
   <div class="grid2">
-    <div class="card"><h3>📝 待辦：待審核申請</h3>${pend.length ? `<div class="tbl"><table><tr><th>船名</th><th>船種</th><th>進港</th><th>出港</th><th></th></tr>${pend.slice(0, 8).map(v => `<tr><td>${esc(ship(v.shipId).name)}</td><td>${esc(ship(v.shipId).type)}</td><td>${fmtS(v.inTime)}</td><td>${fmtS(v.outTime)}</td><td>${staff ? `<button class="btn g s" onclick="approve(['${v.id}'],'通過')">核可</button>` : tag('待審')}</td></tr>`).join('')}</table></div>` : '<div class="empty">目前沒有待審核申請 👍</div>'}</div>
+    <div class="card"><h3>📝 待辦：待審核申請</h3>${pend.length ? `<div class="tbl"><table><tr><th>種類</th><th>船名</th><th>船種</th><th>時間</th><th></th></tr>${pend.slice(0, 8).map(v => `<tr><td>${tag(v.kind)}</td><td>${esc(ship(v.shipId).name)}</td><td>${esc(ship(v.shipId).type)}</td><td>${fmtS(appTime(v))}</td><td style="white-space:nowrap"><button class="btn s" onclick="showApp('${v.id}')">檢視</button>${staff ? `<button class="btn g s" onclick="approve(['${v.id}'],'通過')">核可</button>` : ''}</td></tr>`).join('')}</table></div>${pend.length > 8 ? `<div class="pager"><a class="btn s" onclick="go(${staff} ? 'review' : 'apply')">看全部 ${pend.length} 筆 ›</a></div>` : ''}` : '<div class="empty">目前沒有待審核申請 👍</div>'}</div>
     <div class="card"><h3>🔔 異常提醒</h3>${alerts.length ? alerts.map(a => `<div style="padding:6px 0;border-bottom:1px dashed var(--line)">${a}</div>`).join('') : '<div class="empty">目前沒有異常</div>'}</div>
   </div>
   <div class="card"><h3>📡 今日進出港動態</h3><div class="tbl"><table><tr><th>船名</th><th>航次</th><th>預定進港</th><th>預定出港</th><th>泊位</th><th>動態</th></tr>
@@ -1029,8 +1031,9 @@ VIEWS.master = () => {
     <div class="tbl"><table><tr><th>港口</th><th>泊位名稱</th><th>類型</th><th class="num">可停艘數</th><th>備註</th><th></th></tr>${S.berths.map(b => `<tr><td>${esc(b.port)}</td><td><b>${esc(b.name)}</b></td><td>${esc(b.type)}</td><td class="num">${b.cap}</td><td>${esc(b.note || '')}</td><td style="white-space:nowrap"><button class="btn s" onclick="editBerth('${b.id}')">編輯</button><button class="btn r s" onclick="delBerth('${b.id}')">刪除</button></td></tr>`).join('')}</table></div>`;
   if (tab === 'ports') body = `<div class="bar"><span class="muted">作業港口與建置階段</span><span class="sp"></span><button class="btn p" onclick="editPort()">＋ 新增港口</button></div>
     <div class="tbl"><table><tr><th>港口</th><th>代碼</th><th>地區</th><th>建置階段</th><th>狀態</th><th></th></tr>${S.ports.map(p => `<tr><td><b>${esc(p.name)}</b></td><td>${esc(p.code)}</td><td>${esc(p.region)}</td><td>${esc(p.phase)}</td><td>${esc(p.status)}</td><td style="white-space:nowrap"><button class="btn s" onclick="editPort('${p.id}')">編輯</button><button class="btn r s" onclick="delPort('${p.id}')">刪除</button></td></tr>`).join('')}</table></div>`;
+  if (MX[tab]) body = MX[tab]();
   return `<div class="title"><h2>基本資料</h2><span class="sub">所有新增、修改、刪除都會記錄在「異動歷程」</span></div>
-  <div class="tabs">${[['ships','船舶'],['berths','泊位'],['ports','作業港口']].map(t => `<a class="${tab === t[0] ? 'on' : ''}" onclick="SUBV.master='${t[0]}';render()">${t[1]}</a>`).join('')}</div><div class="card">${body}</div>`;
+  <div class="tabs">${MTABS.map(t => `<a class="${tab === t[0] ? 'on' : ''}" onclick="SUBV.master='${t[0]}';render()">${t[1]}</a>`).join('')}</div><div class="card">${body}</div>`;
 };
 function diff(a, b) { return Object.keys(b).filter(k => String(a[k] ?? '') !== String(b[k] ?? '')).map(k => `${k}：${a[k] ?? ''} → ${b[k]}`).join('；'); }
 function editShip(id) {
@@ -1064,7 +1067,7 @@ function delPort(id) { const p = S.ports.find(x => x.id === id); if (S.berths.so
 /* ---------------- 帳號與權限 */
 VIEWS.users = () => {
   const roles = ['管理者','審核員','航商','小船業者','海關'];
-  const funcs = [['首頁儀表板','dash'],['港區調度','map'],['進出港申請','apply'],['航次管理','voyage'],['進出港動態','moving'],['港務台日誌','dutylog'],['小三通航班','flight'],['旅客統計','stats'],['LED 看板','led'],['計費與月結','billing'],['基本資料','master'],['帳號與權限','users'],['異動歷程','logs'],['介接與公開資訊','api']];
+  const funcs = [['首頁儀表板','dash'],['進出港申請','apply'],['審核中心','review'],['船舶動態','moving'],['航次管理','voyage'],['港區調度','map'],['今日船席','berthgrid'],['拖船作業','tug'],['港勤服務','service'],['港灣費用','harborfee'],['航次統計','vstats'],['港務台日誌','dutylog'],['小三通航班','flight'],['旅客統計','stats'],['LED 看板','led'],['計費與月結','billing'],['基本資料','master'],['帳號與權限','users'],['異動歷程','logs'],['介接與公開資訊','api']];
   const cell = (r, k) => PERM[k] === '*' || PERM[k].includes(r) ? (r === '海關' ? '👁 唯讀' : (['航商','小船業者'].includes(r) && ['apply','voyage','billing'].includes(k) ? '✔ 僅自己的船' : '✔')) : '—';
   return `<div class="title"><h2>帳號與權限</h2><span class="sub">角色權限（能用哪些功能）＋資料範圍（能看哪些船）兩層控管</span><div class="sp"></div><button class="btn p" onclick="editUser()">＋ 新增帳號</button></div>
   <div class="card"><div class="tbl"><table><tr><th>姓名／單位</th><th>帳號</th><th>角色</th><th>資料範圍</th><th>Email</th><th></th></tr>${S.users.map(u => `<tr><td><b>${esc(u.name)}</b><div class="small muted">${esc(u.unit || u.company)}</div></td><td>${esc(u.account)}</td><td>${tag(u.role)}</td><td>${u.company ? '僅「' + esc(u.company) + '」的船舶' : u.role === '海關' ? '全部（唯讀）' : '全部'}</td><td>${esc(u.email)}</td>
@@ -1117,7 +1120,623 @@ VIEWS.api = () => {
 };
 
 /* ------------------------------------------------------------ start */
-load(); save(); render();
+/* V2：啟動移到第二段程式（進出港模組）最後 */
+</script>
+<!--V2-START-->
+<style>
+.form.c3{grid-template-columns:repeat(3,1fr)}
+.form .chk{min-height:34px;align-items:center}
+.form .chk input{width:auto;margin:0}
+.form .chk label{white-space:nowrap;font-size:14px}
+.layout{background:linear-gradient(to right,#fff 220px,var(--bg) 220px)}
+#toast{max-width:380px}
+#modal.on ~ #toast{bottom:90px}
+@media (max-width:820px){.layout{background:var(--bg)}}
+.fsec{grid-column:1/-1;font-weight:700;color:var(--navy2);border-bottom:2px solid #dbe6f6;padding:10px 0 4px;margin-top:4px;display:flex;gap:8px;align-items:center}
+.fsec:first-child{margin-top:0;padding-top:0}
+.fsec .small{font-weight:400}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:#fff;flex-wrap:wrap}
+.seg a{padding:7px 14px;cursor:pointer;border-right:1px solid var(--line);white-space:nowrap}
+.seg a:last-child{border-right:none}
+.seg a.on{background:var(--navy2);color:#fff}
+.seg a .cnt{background:var(--red);color:#fff;border-radius:9px;font-size:11px;padding:0 6px;margin-left:4px}
+.prog{display:flex;gap:2px;margin-top:6px}
+.prog span{flex:1;height:6px;border-radius:3px;background:#e3e8ef}
+.prog span.on{background:var(--navy2)}
+.stepbtns{display:flex;flex-wrap:wrap;gap:4px;margin-top:6px}
+.stepbtns .step.next{border-color:var(--navy2);color:var(--navy2);font-weight:700}
+.bgrid{border-collapse:separate;border-spacing:0;font-size:12px}
+.bgrid th,.bgrid td{border:1px solid var(--line);padding:3px 4px;min-width:74px;text-align:center;vertical-align:middle}
+.bgrid th:first-child,.bgrid td:first-child{position:sticky;left:0;background:#f6f8fb;min-width:56px;z-index:1}
+.bgrid td.c1{background:#e3edfb;color:#1f4e8c}.bgrid td.c2{background:#e0f3e8;color:#1d6b3e}.bgrid td.c3{background:#eceff3;color:#6b7785}
+.bgrid td.now{outline:2px solid #f5b301}
+.cond{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px;font-size:12px}
+.cond span{border-radius:10px;padding:1px 8px;border:1px solid var(--line)}
+.cond .ok{background:#e0f3e8;border-color:#b8dfc8;color:#1d6b3e}.cond .no{background:#fde4e4;border-color:#f0c0c0;color:#a12f2f}
+.kv{display:grid;grid-template-columns:140px 1fr;gap:4px 12px;font-size:13px}
+.kv b{color:#3d4a5a;font-weight:400}
+.flow{display:flex;gap:6px;align-items:center;flex-wrap:wrap;font-size:12px;color:var(--muted);margin-bottom:12px}
+.flow i{font-style:normal;background:#fff;border:1px solid var(--line);border-radius:14px;padding:3px 10px;color:var(--text)}
+@media (max-width:820px){.form.c3{grid-template-columns:1fr}.kv{grid-template-columns:110px 1fr}}
+</style>
+<script>
+/* ============================================================
+   V2：舊系統進出港相關功能完整納入
+   進港預報／進港／移泊／出港預報／出港 申請、審核中心、9 段船舶動態、
+   今日船席、拖船作業、港勤服務（加水／加油／垃圾清運／船舶小修）、
+   港灣費用（碇泊費／垃圾清理費／曳船費／加水費＋帳單附件）、航次統計、
+   對口港／危險品／加成／系統參數
+   ============================================================ */
+const KINDS = ['進港預報','進港','移泊','出港預報','出港'];
+const STEPS9 = ['預報','VHF報到','通過3浬','通過1浬','下錨','起錨','允許進港','通過堤口','靠泊'];
+const ROUTES = ['台金航線','小三通航線','國際航線','金烈航線','其他航線'];
+const CPORTS = [
+  ['高雄','台金航線'],['基隆','台金航線'],['台北','台金航線'],['台中','台金航線'],['花蓮','台金航線'],['布袋','台金航線'],['安平','台金航線'],['麥寮','台金航線'],['興達港','台金航線'],['和平港','台金航線'],['澎湖','台金航線'],
+  ['廈門','小三通航線'],['泉州','小三通航線'],['莆田','小三通航線'],['漳州','小三通航線'],['五通','小三通航線'],['石井','小三通航線'],['東渡','小三通航線'],['福州','小三通航線'],
+  ['廣州','國際航線'],['寧德','國際航線'],['防城港','國際航線'],['平潭','國際航線'],['台州','國際航線'],
+  ['九宮','金烈航線'],['大二膽','金烈航線'],['后豐港','金烈航線'],['金門大橋臨時碼頭','金烈航線'],['復國墩','金烈航線'],['烏坵','金烈航線'],['復興嶼','金烈航線'],['田浦','金烈航線'],['新湖漁港','金烈航線'],['羅厝漁港','金烈航線'],['九宮港區浮動碼頭','金烈航線'],
+  ['水頭東側泊區','其他航線'],['外海作業','其他航線'],['其他','其他航線'],
+];
+const cport = n => S.cports.find(p => p.name === n);
+const routeOf = n => cport(n)?.route || '其他航線';
+
+function migrateV2() {
+  if (S.v2) return;
+  const R = rng(4242);
+  S.ships.forEach(s => {
+    const big = s.gt >= 300;
+    Object.assign(s, { len: big ? Math.round(40 + s.gt / 20) : Math.round(8 + s.gt / 4), width: big ? Math.round(8 + s.gt / 300) : 3, draftF: big ? 2.4 : 0.8, draftA: big ? 2.8 : 1.0,
+      bow: big ? '有' : '沒有', stern: '沒有', engine: '良好', speed: big ? 22 : 12, cert: fmtD(dayStart(200 + Math.floor(R() * 300))),
+      opType: s.type === '小三通客船' ? '定期船' : '非定期船', manager: s.company + '（金門縣金城鎮）', crewTW: big ? 12 : 1, crewFR: s.nation === '中華民國' ? 0 : 10 });
+  });
+  S.cports = CPORTS.map(([name, route], i) => ({ id: uid(), name, route, mtnet: 'TW' + String(100 + i) }));
+  S.dangers = [['乙炔',15],['氧氣',20],['電焊機(船)',20],['滅火器',1000],['瓦斯器具',15]].map(([name, limit]) => ({ id: uid(), name, limit, on: true }));
+  S.extras = [['國內線',1],['國際航線客輪優先靠泊',5],['非航行國內航線',2.5]].map(([name, v]) => ({ id: uid(), item: '碇泊費', name, v }));
+  S.params = { preDays: 15, checkBeforeLeave: true, autoLogout: 30, ledRows: 8, tugRate: 1.2, waterRate: 30 };
+  S.apps = []; S.tugs = []; S.services = []; S.appSeq = 225500;
+  const t0 = dayStart(0);
+  S.voyages.forEach(v => {
+    if (v.inTime < dayStart(-10)) return;
+    const s = ship(v.shipId);
+    const st = v.status === '停航取消' ? '註銷' : v.status;
+    if (needForecast(s.type)) S.apps.push(mkApp('進港預報', v, st === '待審' ? '待審' : st, -1));
+    S.apps.push(mkApp('進港', v, st, 0));
+    if (v.actualOut) S.apps.push(mkApp('出港', v, '通過', 1, { checked: true }));
+    else if (v.status === '通過' && v.move === '靠泊') S.apps.push(mkApp('出港', v, v.outTime < Date.now() + 3 * 3600e3 ? '通過' : '待審', 1, { checked: R() < 0.5 }));
+  });
+  const xa = S.voyages.find(v => ship(v.shipId).code === 'XL8' && v.move === '靠泊');
+  if (xa) S.apps.push(mkApp('移泊', xa, '待審', 2, { moveKind: '港內移泊', berthTo: 'EY', time: at(0, 15) }));
+  const dz = S.voyages.find(v => ship(v.shipId).code === 'DZ' && v.move === '靠泊');
+  if (dz) {
+    S.apps.push(mkApp('出港預報', dz, '通過', 1));
+    S.tugs.push({ id: uid(), voyageId: dz.id, kind: '進港', tug: '港勤1號', start: dz.actualIn - 20 * 60e3, end: dz.actualIn, hp: 2500, billHp: 600, rope: '否', confirmed: '' });
+  }
+  S.voyages.filter(v => v.actualOut && ship(v.shipId).type === '貨船').slice(-3).forEach(v => S.tugs.push({ id: uid(), voyageId: v.id, kind: '出港', tug: '港勤1號', start: v.actualOut - 15 * 60e3, end: v.actualOut + 5 * 60e3, hp: 2500, billHp: 600, rope: '否', confirmed: fmtD(v.actualOut) }));
+  const pick = c => S.voyages.filter(v => ship(v.shipId).code === c && v.status === '通過').slice(-1)[0];
+  const svc = (type, c, st, f, act) => { const v = pick(c); if (!v) return; S.services.push({ id: uid(), type, voyageId: v.id, shipId: v.shipId, start: v.inTime + 3600e3, end: v.inTime + 2 * 3600e3, berthId: v.berthId || 'S4', status: st, f, actual: act || null, created: Date.now() }); };
+  svc('加油', 'XA', '通過', { fuel: '柴油', person: '王大明', phone: '0912-000-111' }, { qty: 3.5 });
+  svc('加油', 'JX06', '待審', { fuel: '柴油', person: '陳小華', phone: '0912-000-222' });
+  svc('加水', 'DZ', '通過', { person: '林水生', phone: '0912-000-333' }, { qty: 40 });
+  svc('船舶小修', 'XUA', '待審', { company: '金門船舶修造廠', place: 'S4 碼頭', outside: '否', items: '主機冷卻管更換', person: '吳師傅', phone: '0912-000-444', danger: [['乙炔', 2], ['氧氣', 2]] });
+  svc('垃圾清運', 'DZ', '退回', { person: '林水生', phone: '0912-000-333', reason: '作業時間與裝卸衝突' });
+  S.voyages.forEach(v => { v.extra = v.extra || '國內線'; v.stepLog = (v.steps || []).map(s => ({ s, t: v.inTime - 30 * 60e3 })); if (v.actualIn) v.stepLog.push({ s: '靠泊', t: v.actualIn }); });
+  S.berths.forEach(b => { b.water = ['NB','S4'].includes(b.id); b.oil = ['NB','S4','CG','SB'].includes(b.id); });
+  S.v2 = true;
+}
+function mkApp(kind, v, status, seq, o = {}) {
+  const s = ship(v.shipId);
+  return { id: uid(), no: ++S.appSeq, kind, voyageId: v.id, shipId: v.shipId, status, created: (v.created || v.inTime) + seq * 60e3, applicant: v.applicant || s.company,
+    checked: !!o.checked, f: Object.assign(baseFields(kind, v, s), o) };
+}
+function baseFields(kind, v, s) {
+  const pax = s.type === '小三通客船' ? 180 : s.type === '遊艇' ? 6 : 0;
+  const f = { gt: s.gt, len: s.len, width: s.width, draftF: s.draftF, draftA: s.draftA, bow: s.bow, stern: s.stern, engine: s.engine,
+    port: '水頭', berthId: v.berthId || '', rope: '不需要', prevPort: v.prevPort, nextPort: v.nextPort, route: routeOf(v.prevPort),
+    paxTW: Math.round(pax * .6), paxFR: Math.round(pax * .4), crewTW: s.crewTW, crewFR: s.crewFR, follow: 0, dangerQty: 0, dangerKind: '' };
+  if (kind === '進港預報' || kind === '進港') Object.assign(f, { inTime: v.inTime, outTime: v.outTime, opType: s.opType, purpose: s.type === '小三通客船' ? '客運' : s.type === '貨船' ? '裝卸貨物' : '停泊', speed: s.speed, avgSpeed: s.speed - 2, cert: s.cert, customsNo: '', mail: 0, dry: s.type === '貨船' ? 820 : 0, liquid: 0, ctnFull: 0, ctnFullT: 0, ctnEmpty: 0, ctnEmptyT: 0 });
+  if (kind === '出港預報' || kind === '出港') Object.assign(f, { outTime: v.outTime, manager: s.manager, crewATW: Math.ceil(s.crewTW / 3), crewAFR: 0, crewBTW: s.crewTW - Math.ceil(s.crewTW / 3), crewBFR: s.crewFR, cargoT: 0, cargoC: 0, paxOrigTW: 0, paxOrigFR: 0, paxOffTW: 0, paxOffFR: 0 });
+  if (kind === '移泊') Object.assign(f, { moveKind: '港內移泊', berthTo: '', time: Date.now() + 3600e3 });
+  return f;
+}
+const appsOf = (vid, kind) => S.apps.filter(a => a.voyageId === vid && (!kind || a.kind === kind));
+function ensureApps() {
+  if (!S.v2) return;
+  S.voyages.forEach(v => { if (v.inTime >= dayStart(-10) && !appsOf(v.id).length) S.apps.push(mkApp('進港', v, v.status === '停航取消' ? '註銷' : v.status, 0)); });
+}
+
+toast = function (msg, cls = '') { const box = $('#toast'); while (box.children.length >= 3) box.firstChild.remove(); const d = document.createElement('div'); d.className = 'toast ' + cls; d.innerHTML = msg; box.appendChild(d); setTimeout(() => d.remove(), 3800); };
+/* ---------- 選單重新編排 ---------- */
+NAV.splice(0, NAV.length,
+  ['', [['dash','🏠','首頁儀表板']]],
+  ['進出港作業', [['apply','📝','進出港申請'],['review','✅','審核中心'],['moving','📡','船舶動態'],['voyage','🚢','航次管理']]],
+  ['港區與船席', [['map','🗺️','港區調度（空拍圖）'],['berthgrid','🕒','今日船席'],['tug','⚓','拖船作業'],['service','🛠️','港勤服務']]],
+  ['費用與統計', [['harborfee','🧾','港灣費用'],['billing','💰','月結出帳'],['vstats','📈','航次統計'],['dutylog','📒','港務台日誌']]],
+  ['旅客作業', [['flight','⛴️','小三通航班'],['stats','📊','旅客統計分析'],['led','🖥️','LED 看板管理']]],
+  ['系統管理', [['master','🗂️','基本資料'],['users','👥','帳號與權限'],['logs','🕘','異動歷程'],['api','🔗','介接與公開資訊']]],
+);
+Object.assign(PERM, { review: ['管理者','審核員'], berthgrid: ['管理者','審核員','海關'], tug: ['管理者','審核員'], service: ['管理者','審核員','航商','小船業者'],
+  harborfee: ['管理者','審核員'], vstats: ['管理者','審核員','海關'] });
+function pendingCount() { const ids = new Set(visibleShips().map(s => s.id)); return S.apps ? S.apps.filter(a => a.status === '待審' && ids.has(a.shipId)).length : 0; }
+function render() {
+  ensureApps(); renderNav();
+  const pc = pendingCount(), sc = (S.services || []).filter(x => x.status === '待審').length;
+  document.querySelectorAll('#nav a').forEach(a => { if (/審核中心/.test(a.textContent) && pc && isStaff()) a.insertAdjacentHTML('beforeend', `<span class="cnt">${pc}</span>`); if (/港勤服務/.test(a.textContent) && sc && isStaff()) a.insertAdjacentHTML('beforeend', `<span class="cnt">${sc}</span>`); });
+  $('#view').innerHTML = (VIEWS[VIEW] || VIEWS.dash)();
+}
+</script>
+<script>
+/* ---------- 分段表單 ---------- */
+function formModal2({ title, fields, data = {}, onSave, note = '', foot }) {
+  FORM = { fields: fields.filter(f => !f.sec), onSave };
+  const h = fields.map(f => {
+    if (f.sec) return `<div class="fsec">${f.sec}${f.hint ? `<span class="small muted">${f.hint}</span>` : ''}</div>`;
+    const v = data[f.k] ?? f.def ?? ''; const dis = f.ro ? 'disabled' : '';
+    let inp;
+    if (f.type === 'select') inp = `<select id="f_${f.k}" ${dis}>${(f.opts || []).map(o => { const [ov, ol] = Array.isArray(o) ? o : [o, o]; return `<option value="${esc(ov)}" ${String(ov) === String(v) ? 'selected' : ''}>${esc(ol)}</option>`; }).join('')}</select>`;
+    else if (f.type === 'textarea') inp = `<textarea id="f_${f.k}" rows="2" ${dis}>${esc(v)}</textarea>`;
+    else if (f.type === 'datetime') inp = `<input id="f_${f.k}" type="datetime-local" value="${toInput(v)}" ${dis}>`;
+    else if (f.type === 'radio') inp = `<div class="chk" id="f_${f.k}">${f.opts.map(o => `<label><input type="radio" name="r_${f.k}" value="${esc(o)}" ${String(v || f.opts[0]) === o ? 'checked' : ''} ${dis}>${esc(o)}</label>`).join('')}</div>`;
+    else inp = `<input id="f_${f.k}" type="${f.type || 'text'}" value="${f.type === 'file' ? '' : esc(v)}" ${f.step ? `step="${f.step}"` : ''} ${f.type === 'number' ? 'min="0"' : ''} ${dis}>`;
+    return `<div class="f ${f.full ? 'full' : ''}"><label>${esc(f.label)}${f.req ? '<span class="req">*</span>' : ''}${f.unit ? `<span class="muted small">（${f.unit}）</span>` : ''}</label>${inp}${f.hint ? `<div class="hint">${f.hint}</div>` : ''}</div>`;
+  }).join('');
+  modal(title, (note ? `<div class="note">${note}</div>` : '') + `<div class="form c3">${h}</div><div id="formErr" style="color:var(--red);margin-top:10px"></div>`,
+    foot || `<button class="btn" onclick="closeModal()">取消</button><button class="btn p" onclick="submitForm()">送出</button>`, true);
+  fields.forEach(f => f.onchange && $('#f_' + f.k)?.addEventListener('change', f.onchange));
+}
+readForm = function () {
+  const o = {};
+  FORM.fields.forEach(f => {
+    const el = $('#f_' + f.k); if (!el || f.type === 'file') return;
+    if (f.type === 'datetime') o[f.k] = fromInput(el.value);
+    else if (f.type === 'number') o[f.k] = el.value === '' ? '' : Number(el.value);
+    else if (f.type === 'checks') o[f.k] = [...el.querySelectorAll('input:checked')].map(i => i.value);
+    else if (f.type === 'radio') o[f.k] = el.querySelector('input:checked')?.value || '';
+    else o[f.k] = (el.value ?? '').trim();
+  });
+  return o;
+};
+
+/* ---------- 申請表單欄位（依舊系統） ---------- */
+const BIG = () => S.cports.map(p => p.name);
+const FERRYP = ['五通','石井','廈門','泉州','東渡'];
+const mode = s => s.type === '小三通客船' ? 'ferry' : ['自用小船','漁船','遊艇'].includes(s.type) ? 'small' : 'full';
+const berthOpts = () => [['', '由港務處安排'], ...S.berths.filter(b => b.port === '水頭').map(b => [b.id, b.name])];
+const F_SHIP = [{ k: 'gt', label: '船總重', type: 'number', unit: '噸', req: 1 }, { k: 'len', label: '船長', type: 'number', unit: '公尺', req: 1 }, { k: 'width', label: '船寬', type: 'number', unit: '公尺', req: 1 },
+  { k: 'draftF', label: '前吃水', type: 'number', unit: '公尺', step: '0.1', req: 1 }, { k: 'draftA', label: '後吃水', type: 'number', unit: '公尺', step: '0.1', req: 1 }, { k: 'engine', label: '機舵狀況', type: 'select', opts: ['良好','不良','無動力'], req: 1 },
+  { k: 'bow', label: '船艏推進器', type: 'radio', opts: ['沒有','有'] }, { k: 'stern', label: '船艉推進器', type: 'radio', opts: ['沒有','有'] }];
+function appFields(kind, s, vOpts) {
+  const m = mode(s); const A = [];
+  const shipSel = { k: 'shipId', label: '船舶', type: 'select', opts: visibleShips().map(x => [x.id, `${x.name}（${x.type}）`]), req: 1, onchange: () => reopenApp(kind) };
+  const head = [{ sec: '選擇船舶', hint: m === 'ferry' ? '小三通客輪：精簡欄位（原「水頭客輪」表單）' : m === 'small' ? '小船：進港時一併申請出港' : '' }, shipSel,
+    { k: 'company', label: '申請公司', ro: 1 }, { k: 'route', label: '航線', type: 'select', opts: ROUTES, req: 1 }];
+  const att = n => [{ sec: '相關附件', hint: '航線核准單、艙單、隨船人員名冊與保險資料可合併成一個檔案上傳（PDF、DOC、XLS、JPG、PNG）' }, ...Array.from({ length: n }, (_, i) => ({ k: 'att' + i, label: i === 0 ? '船員名單' : '附件' + i, type: 'file' }))];
+  if (kind === '進港預報' || kind === '進港') {
+    if (m === 'ferry') return [...head, { k: 'gt', label: '船總重', type: 'number', unit: '噸', req: 1 },
+      { sec: '船舶相關資料' }, { k: 'crewTW', label: '船員人數(中華民國)', type: 'number', req: 1 }, { k: 'crewFR', label: '船員人數(外國)', type: 'number', req: 1 }, { k: 'paxTW', label: '預計旅客人數', type: 'number' },
+      { sec: '港口船席' }, { k: 'port', label: '港口', type: 'select', opts: S.ports.map(p => p.name), req: 1 }, { k: 'berthId', label: '預計停泊船席', type: 'select', opts: berthOpts() }, { k: 'rope', label: '是否需要使用拖船纜繩', type: 'radio', opts: ['不需要','需要'] },
+      { sec: '進港相關資訊' }, { k: 'inTime', label: '預定進港時間', type: 'datetime', req: 1 }, { k: 'outTime', label: '預定離港時間', type: 'datetime', req: 1 }, { k: 'prevPort', label: '前一港', type: 'select', opts: FERRYP, req: 1 }, { k: 'nextPort', label: '次一港', type: 'select', opts: FERRYP, req: 1 },
+      ...att(3), { k: 'remark', label: '備註', type: 'textarea', full: 1 }];
+    if (m === 'small') return [...head, { k: 'gt', label: '船總重', type: 'number', unit: '噸', req: 1 }, { k: 'len', label: '船長', type: 'number', unit: '公尺' },
+      { sec: '人員' }, { k: 'crewTW', label: '船員人數', type: 'number', req: 1 }, { k: 'paxTW', label: '乘客人數', type: 'number' }, { k: 'follow', label: '隨船人員數', type: 'number' },
+      { sec: '港口船席' }, { k: 'port', label: '港口', type: 'select', opts: S.ports.map(p => p.name), req: 1 }, { k: 'berthId', label: '預計停泊船席', type: 'select', opts: berthOpts() }, { k: 'purpose', label: '進港目的', req: 1 },
+      { sec: '進港＋出港（一次申請）', hint: '送出後同時建立出港申請，不必再申請一次' }, { k: 'inTime', label: '預定進港時間', type: 'datetime', req: 1 }, { k: 'outTime', label: '預定出港時間', type: 'datetime', req: 1 }, { k: 'prevPort', label: '前一港', type: 'select', opts: BIG(), req: 1 }, { k: 'nextPort', label: '次一港', type: 'select', opts: BIG(), req: 1 },
+      ...att(1), { k: 'remark', label: '備註', type: 'textarea', full: 1 }];
+    return [...head, { sec: '船體資料' }, ...F_SHIP, { k: 'speed', label: '船速', type: 'number', unit: '浬' }, { k: 'avgSpeed', label: '本航次平均船速', type: 'number', unit: '浬' }, { k: 'cert', label: '檢查證書日期至', type: 'date' },
+      { sec: '船舶相關資料' }, { k: 'opType', label: '營運種類', type: 'select', opts: ['定期船','非定期船','同盟船','非同盟船'], req: 1 }, { k: 'paxTW', label: '預計旅客人數(中)', type: 'number', req: 1 }, { k: 'paxFR', label: '預計旅客人數(外)', type: 'number', req: 1 },
+      { k: 'crewTW', label: '船員人數(中華民國)', type: 'number', req: 1 }, { k: 'crewFR', label: '船員人數(外國)', type: 'number', req: 1 }, { k: 'follow', label: '隨船人員數', type: 'number', req: 1 },
+      { k: 'dangerQty', label: '危險品數量', type: 'number' }, { k: 'dangerKind', label: '危險品種類' },
+      { sec: kind === '進港' ? '港口船席與拖船申請' : '港口船席' }, { k: 'port', label: '港口', type: 'select', opts: S.ports.map(p => p.name), req: 1 }, { k: 'berthId', label: '預計停泊船席', type: 'select', opts: berthOpts(), req: 1 },
+      ...(kind === '進港' ? [{ k: 'rope', label: '是否需要使用拖船纜繩', type: 'radio', opts: ['不需要','需要'] }] : []),
+      { sec: '進港相關資訊' }, { k: 'inTime', label: '預定進港時間', type: 'datetime', req: 1 }, { k: 'outTime', label: '預定離港時間', type: 'datetime', req: 1 }, { k: 'prevPort', label: '前一港', type: 'select', opts: BIG(), req: 1 }, { k: 'nextPort', label: '次一港', type: 'select', opts: BIG(), req: 1 },
+      { k: 'purpose', label: '進港目的', req: 1 }, { k: 'customsNo', label: '海關船隻掛號' },
+      { sec: '載運資料' }, { k: 'mail', label: '郵件數', type: 'number', unit: '件' }, { k: 'dry', label: '乾貨', type: 'number', unit: '公噸' }, { k: 'liquid', label: '液體', type: 'number', unit: '公噸' },
+      { k: 'ctnFull', label: '貨櫃-載貨', type: 'number', unit: '個' }, { k: 'ctnFullT', label: '貨櫃-載貨', type: 'number', unit: '噸' }, { k: 'ctnEmpty', label: '貨櫃-空櫃', type: 'number', unit: '個' },
+      ...(kind === '進港' ? att(5) : [])];
+  }
+  const vSel = { k: 'voyageId', label: '船舶航次', type: 'select', opts: vOpts, req: 1 };
+  const head2 = [{ sec: '選擇航次', hint: '只列出已核准、尚未出港的航次' }, shipSel, vSel, { k: 'company', label: '申請公司', ro: 1 }];
+  if (kind === '移泊') return [...head2, { sec: '船體資料' }, ...F_SHIP,
+    { sec: '港口船席與拖船申請' }, { k: 'port', label: '港口', type: 'select', opts: S.ports.map(p => p.name), req: 1 }, { k: 'berthTo', label: '預計停泊船席', type: 'select', opts: berthOpts().slice(1), req: 1 }, { k: 'rope', label: '是否需要使用拖船纜繩', type: 'radio', opts: ['不需要','需要'] },
+    { sec: '移泊相關資訊' }, { k: 'moveKind', label: '移泊種類', type: 'select', opts: ['港內移泊','移泊港外','移泊港內'], req: 1 }, { k: 'time', label: '預定作業時間', type: 'datetime', req: 1 }, { k: 'remark', label: '備註' }];
+  if (kind === '出港預報') return [...head2, { sec: '出港資訊' }, { k: 'outTime', label: '預定出港時間', type: 'datetime', req: 1 }, { k: 'nextPort', label: '次一港', type: 'select', opts: BIG(), req: 1 }, { k: 'remark', label: '備註' }];
+  if (m === 'ferry') return [...head2, { k: 'gt', label: '船總重', type: 'number', unit: '噸', req: 1 },
+    { sec: '船舶相關資料' }, { k: 'crewATW', label: '甲級船員人數(中華民國)', type: 'number', req: 1 }, { k: 'crewAFR', label: '甲級船員人數(外國)', type: 'number', req: 1 }, { k: 'crewBTW', label: '乙級船員人數(中華民國)', type: 'number', req: 1 }, { k: 'crewBFR', label: '乙級船員人數(外國)', type: 'number', req: 1 },
+    { sec: '出港相關資訊' }, { k: 'outTime', label: '預定出港時間', type: 'datetime', req: 1 }, { k: 'nextPort', label: '次一港', type: 'select', opts: FERRYP, req: 1 }, ...att(3), { k: 'remark', label: '備註', type: 'textarea', full: 1 }];
+  return [...head2, { sec: '船體資料' }, ...F_SHIP, { k: 'manager', label: '承租人或經理人姓名地址', full: 1 },
+    { sec: '船舶相關資料' }, { k: 'paxTW', label: '預計旅客人數(中)', type: 'number', req: 1 }, { k: 'paxFR', label: '預計旅客人數(外)', type: 'number', req: 1 }, { k: 'follow', label: '隨船人員數', type: 'number', req: 1 },
+    { k: 'crewATW', label: '甲級船員(中華民國)', type: 'number', req: 1 }, { k: 'crewAFR', label: '甲級船員(外國)', type: 'number', req: 1 }, { k: 'crewBTW', label: '乙級船員(中華民國)', type: 'number', req: 1 }, { k: 'crewBFR', label: '乙級船員(外國)', type: 'number', req: 1 },
+    { k: 'dangerQty', label: '危險品數量', type: 'number' }, { k: 'dangerKind', label: '危險品種類' },
+    { sec: '貨運與旅客異動' }, { k: 'cargoT', label: '貨運數量', type: 'number', unit: '噸' }, { k: 'cargoC', label: '貨運數量', type: 'number', unit: '櫃' }, { k: 'paxOrigTW', label: '原有旅客人數(中)', type: 'number' }, { k: 'paxOrigFR', label: '原有旅客人數(外)', type: 'number' }, { k: 'paxOffTW', label: '下船旅客人數(中)', type: 'number' }, { k: 'paxOffFR', label: '下船旅客人數(外)', type: 'number' },
+    { sec: '出港相關資訊' }, { k: 'outTime', label: '預定出港時間', type: 'datetime', req: 1 }, { k: 'nextPort', label: '次一港', type: 'select', opts: BIG(), req: 1 }, { k: 'rope', label: '是否需要使用拖船纜繩', type: 'radio', opts: ['不需要','需要'] },
+    ...att(5)];
+}
+</script>
+<script>
+/* ---------- 申請：開啟／儲存 ---------- */
+let APPCTX = {};
+const voy = id => S.voyages.find(v => v.id === id);
+const appTime = a => a.kind === '移泊' ? a.f.time : (a.kind === '出港' || a.kind === '出港預報') ? a.f.outTime : a.f.inTime;
+function vOpts(shipId) { const o = S.voyages.filter(v => v.shipId === shipId && v.status === '通過' && !v.actualOut).sort((a, b) => a.inTime - b.inTime).map(v => [v.id, `${v.code}｜${fmtS(v.inTime)} 進港${v.move === '靠泊' ? '（靠泊中）' : ''}`]); return o.length ? o : [['', '（此船目前沒有可用航次）']]; }
+function openApp(kind, id, copy, override) {
+  if (!canEdit()) return;
+  const a = id ? S.apps.find(x => x.id === id) : null;
+  let data;
+  if (a) { data = { ...a.f, shipId: a.shipId, voyageId: a.voyageId }; if (copy) { ['inTime', 'outTime', 'time'].forEach(k => data[k] && (data[k] += 864e5)); } }
+  else {
+    const s = ship(override?.shipId || visibleShips()[0]?.id); if (!s.id) { toast('您的帳號沒有可申請的船舶'); return; }
+    const vo = vOpts(s.id); const v = voy(vo[0][0]) || { inTime: at(1, 9), outTime: at(1, 11), prevPort: mode(s) === 'ferry' ? '五通' : mode(s) === 'small' ? '水頭東側泊區' : '高雄', nextPort: mode(s) === 'ferry' ? '五通' : mode(s) === 'small' ? '水頭東側泊區' : '高雄', berthId: '' };
+    data = { ...baseFields(kind, v, s), shipId: s.id, voyageId: vo[0][0] };
+    if (['進港','進港預報'].includes(kind)) Object.assign(data, { inTime: at(1, 9), outTime: at(1, 11), prevPort: v.prevPort, nextPort: v.nextPort, berthId: '' });
+  }
+  if (override) Object.assign(data, override);
+  const s = ship(data.shipId); data.company = s.company;
+  APPCTX = { kind, id: copy ? null : id };
+  formModal2({ title: `${a && !copy ? '編輯' : copy ? '複製' : isStaff() ? '代申請' : '新增'}：${kind}申請${a && !copy ? '（單號 ' + a.no + '）' : ''}`,
+    note: { '進港預報': '客船、貨船進港前需先預報；小船免預報。', '進港': '可預先申請 ' + S.params.preDays + ' 天內航次（系統參數可調）。核准後產生航次並排入船舶動態。', '移泊': '核准後泊位自動更新，並顯示於空拍圖與今日船席。', '出港預報': '預報預定出港時間與次一港。', '出港': '核准後需「移民署檢查完畢」才可產生出港動態（系統參數可調）。' }[kind] + (isStaff() ? '　<b>港務處代申請：送出即核准。</b>' : ''),
+    fields: appFields(kind, s, vOpts(s.id)), data, onSave: o => saveApp(kind, o) });
+}
+function reopenApp(kind) { const o = readForm(); const s = ship(o.shipId); const keep = {}; ['inTime', 'outTime', 'time', 'route'].forEach(k => o[k] && (keep[k] = o[k])); closeModal(); openApp(kind, null, false, { ...baseFields(kind, { inTime: o.inTime || at(1, 9), outTime: o.outTime || at(1, 11), prevPort: mode(s) === 'ferry' ? '五通' : '水頭東側泊區', nextPort: mode(s) === 'ferry' ? '五通' : '水頭東側泊區', berthId: '' }, s), shipId: s.id, voyageId: vOpts(s.id)[0][0], ...keep }); }
+function saveApp(kind, o) {
+  const s = ship(o.shipId); delete o.company;
+  if (o.inTime && o.outTime && o.outTime <= o.inTime) return '出港（離港）時間必須晚於進港時間';
+  if (o.inTime && o.inTime > Date.now() + S.params.preDays * 864e5) return `只能申請 ${S.params.preDays} 天內的航次`;
+  if (!['進港','進港預報'].includes(kind) && !o.voyageId) return '此船目前沒有可用航次，請先申請進港';
+  if (kind === '出港') { const v = voy(o.voyageId); if (o.outTime <= (v.actualIn || v.inTime)) return '出港時間必須晚於進港時間'; }
+  const staff = isStaff();
+  if (APPCTX.id) { const a = S.apps.find(x => x.id === APPCTX.id); const sid = o.shipId, vid = o.voyageId; delete o.shipId; delete o.voyageId; log('修改申請', `${kind} ${a.no} ${s.name}`, diff(a.f, o)); Object.assign(a.f, o); if (a.status === '通過') applyEffects(a); toast('已儲存'); return; }
+  const st = staff ? '通過' : '待審';
+  let v;
+  if (['進港','進港預報'].includes(kind)) {
+    v = S.voyages.find(x => x.shipId === s.id && !x.actualIn && Math.abs(x.inTime - o.inTime) < 12 * 3600e3 && !appsOf(x.id, kind).length && appsOf(x.id).length);
+    if (!v) { s.cum++; v = { id: uid(), shipId: s.id, code: nextCode(s, o.inTime), cum: s.cum, inTime: o.inTime, outTime: o.outTime, prevPort: o.prevPort, nextPort: o.nextPort, berthId: o.berthId || '', status: st, move: '預報', actualIn: null, actualOut: null, steps: [], pax: (o.paxTW || 0) + (o.paxFR || 0), remark: o.remark || '', applicant: me().name, created: Date.now(), extra: '國內線' }; S.voyages.push(v); }
+  } else v = voy(o.voyageId);
+  const sid = o.shipId; delete o.shipId; delete o.voyageId;
+  const a = { id: uid(), no: ++S.appSeq, kind, voyageId: v.id, shipId: sid, status: st, created: Date.now(), applicant: me().name, checked: false, f: { ...baseFields(kind, v, s), ...o } };
+  S.apps.push(a);
+  if (kind === '進港' && mode(s) === 'small') S.apps.push({ ...a, id: uid(), no: ++S.appSeq, kind: '出港', f: { ...baseFields('出港', v, s), outTime: o.outTime, nextPort: o.nextPort } });
+  if (st === '通過') applyEffects(a); syncVoyage(v);
+  log(staff ? '代申請' : '新增申請', `${kind} ${a.no} ${s.name}`, `航次 ${v.code}`);
+  toast(staff ? `已代申請並核准：${kind} ${a.no}（航次 ${v.code}）` : `已送出${kind}申請 ${a.no}${kind === '進港' && mode(s) === 'small' ? '，並同時建立出港申請' : ''}，等待港務處審核`, 'ok');
+}
+function syncVoyage(v) { if (!v) return; const m = appsOf(v.id, '進港')[0] || appsOf(v.id, '進港預報')[0]; if (m && v.status !== '停航取消') v.status = m.status === '註銷' ? '停航取消' : m.status; }
+function applyEffects(a) {
+  const v = voy(a.voyageId); if (!v) return;
+  if (['進港','進港預報'].includes(a.kind) && !v.actualIn) Object.assign(v, { inTime: a.f.inTime, outTime: a.f.outTime, prevPort: a.f.prevPort, nextPort: a.f.nextPort, berthId: a.f.berthId || v.berthId });
+  if (['出港','出港預報'].includes(a.kind)) Object.assign(v, { outTime: a.f.outTime, nextPort: a.f.nextPort });
+  if (a.kind === '移泊' && a.f.berthTo) { const from = berth(v.berthId)?.name || '—'; v.berthId = a.f.berthTo; log('移泊', `${ship(v.shipId).name} ${v.code}`, `${from} → ${berth(a.f.berthTo)?.name}（${a.f.moveKind}）`); }
+}
+approve = function (ids, st, reason = '') {
+  const list = [];
+  ids.forEach(id => { let a = S.apps.find(x => x.id === id); if (!a) { const v = voy(id); a = v && (appsOf(v.id).find(x => x.status === '待審')); } if (a && a.status === '待審') list.push(a); });
+  if (!list.length) { toast('請先勾選待審核的申請'); return; }
+  list.forEach(a => {
+    a.status = st; if (reason) a.reason = reason; a.reviewer = me().name; a.reviewed = Date.now();
+    if (st === '通過') applyEffects(a);
+    if (a.kind === '進港' && mode(ship(a.shipId)) === 'small') appsOf(a.voyageId, '出港').forEach(x => { if (x.status === '待審') { x.status = st; if (st === '通過') applyEffects(x); } });
+    syncVoyage(voy(a.voyageId)); AP.sel.delete(a.id);
+    log(st === '通過' ? '核可申請' : st === '退回' ? '退回申請' : '註銷申請', `${a.kind} ${a.no} ${ship(a.shipId).name}`, reason);
+  });
+  save(); render();
+  toast(`${st === '通過' ? '✔ 已核可' : st === '退回' ? '✖ 已退回' : '已註銷'} ${list.length} 筆，並已以 Email／簡訊通知申請人（模擬）`, 'ok');
+};
+function rejectApps(ids, st = '退回') { if (!ids.length) { toast('請先勾選待審核的申請'); return; } const r = prompt(`請輸入${st}原因（會通知申請人）`, st === '退回' ? '資料不全，請補正' : '申請人撤回'); if (r === null) return; approve(ids, st, r); }
+function delApp(id) { const a = S.apps.find(x => x.id === id); if (!confirm(`刪除 ${a.kind}申請 ${a.no}？（留下異動紀錄）`)) return; S.apps = S.apps.filter(x => x.id !== id); const v = voy(a.voyageId); if (v && !appsOf(v.id).length && !v.actualIn) S.voyages = S.voyages.filter(x => x.id !== v.id); else syncVoyage(v); log('刪除申請', `${a.kind} ${a.no} ${ship(a.shipId).name}`); save(); render(); }
+function checkApp(a) {
+  const r = []; const v = voy(a.voyageId); const t = appTime(a);
+  if (a.f.inTime) r.push(a.f.inTime <= Date.now() + S.params.preDays * 864e5 ? [1, `${S.params.preDays} 天內`] : [0, `超過 ${S.params.preDays} 天`]);
+  const bid = a.kind === '移泊' ? a.f.berthTo : a.f.berthId;
+  if (bid && a.f.inTime !== undefined || a.kind === '移泊') { const b = berth(bid); if (b) { const s0 = a.kind === '移泊' ? a.f.time : a.f.inTime, s1 = a.kind === '移泊' ? (v?.outTime || s0 + 3600e3) : a.f.outTime;
+    const n = S.voyages.filter(x => x.id !== a.voyageId && x.berthId === bid && x.status === '通過' && !x.actualOut && (x.actualIn || x.inTime) < s1 && x.outTime > s0).length; r.push(n >= b.cap ? [0, `${b.name} 時段衝突`] : [1, `${b.name} 可用`]); } }
+  if (a.f.cert) r.push(a.f.cert >= fmtD(t) ? [1, '證書有效'] : [0, '檢查證書過期']);
+  if (Number(a.f.dangerQty) > 0) r.push([0, `危險品 ${a.f.dangerQty}（${a.f.dangerKind || '未填'}）`]);
+  if (a.kind === '出港') r.push(v?.move === '靠泊' ? [1, '船舶靠泊中'] : [0, '船舶尚未靠泊']);
+  if (a.kind === '移泊') r.push(v?.move === '靠泊' ? [1, '船舶靠泊中'] : [0, '船舶尚未靠泊']);
+  return r;
+}
+const condHtml = a => `<div class="cond">${checkApp(a).map(([ok, m]) => `<span class="${ok ? 'ok' : 'no'}">${ok ? '✔' : '!'} ${esc(m)}</span>`).join('')}</div>`;
+const FLABEL = {};
+function showApp(id) {
+  const a = S.apps.find(x => x.id === id); const s = ship(a.shipId); const v = voy(a.voyageId);
+  appFields(a.kind, s, vOpts(s.id)).forEach(f => f.k && (FLABEL[f.k] = f.label + (f.unit ? `（${f.unit}）` : '')));
+  const val = (k, x) => { if (x == null || x === '') return '—'; if (/Time$|^time$/.test(k)) return fmt(x); if (k === 'berthId' || k === 'berthTo') return berth(x)?.name || '—'; return esc(x); };
+  const keys = Object.keys(a.f).filter(k => FLABEL[k]);
+  const hist = S.logs.filter(l => l.target.includes(String(a.no)));
+  modal(`${a.kind}申請 ${a.no}　${tag(a.status)}`, `<div class="kv"><b>船舶</b><span>${esc(s.name)}（${esc(s.type)}）</span><b>申請公司</b><span>${esc(s.company)}</span><b>航次</b><span>${v?.code || '—'}</span><b>申請人／時間</b><span>${esc(a.applicant)}｜${fmt(a.created)}</span>${a.reviewer ? `<b>審核</b><span>${esc(a.reviewer)}｜${fmt(a.reviewed)}${a.reason ? '｜' + esc(a.reason) : ''}</span>` : ''}${a.kind === '出港' ? `<b>移民署檢查</b><span>${a.checked ? '檢查完畢' : '待檢查'}</span>` : ''}</div>
+  <h4 style="margin:14px 0 6px">自動檢核</h4>${condHtml(a)}
+  <h4 style="margin:14px 0 6px">申請內容</h4><div class="kv">${keys.map(k => `<b>${esc(FLABEL[k])}</b><span>${val(k, a.f[k])}</span>`).join('')}</div>
+  <h4 style="margin:14px 0 6px">處理歷程</h4>${hist.map(l => `<div class="small">${fmt(l.time)}　${esc(l.user)}　${esc(l.action)}　${esc(l.detail)}</div>`).join('') || '<div class="small muted">（展示資料無歷程）</div>'}`,
+  `<button class="btn" onclick="closeModal()">關閉</button>${isStaff() && a.status === '待審' ? `<button class="btn r" onclick="closeModal();rejectApps(['${a.id}'])">退回</button><button class="btn g" onclick="closeModal();approve(['${a.id}'],'通過')">核可</button>` : ''}`, true);
+}
+
+/* ---------- 進出港申請頁 ---------- */
+let AP2 = { kind: '進港', st: '', q: '', page: 1 };
+VIEWS.apply = () => {
+  if (SUBV.apply) { if (KINDS.includes(SUBV.apply)) AP2.kind = SUBV.apply; else AP2.st = SUBV.apply; SUBV.apply = null; }
+  const staff = isStaff(), ro = !canEdit(); const ids = new Set(visibleShips().map(s => s.id));
+  const mine = S.apps.filter(a => ids.has(a.shipId));
+  let as = mine.filter(a => a.kind === AP2.kind);
+  if (AP2.st) as = as.filter(a => a.status === AP2.st);
+  if (AP2.q) as = as.filter(a => (ship(a.shipId).name + a.no + ship(a.shipId).company + (voy(a.voyageId)?.code || '')).includes(AP2.q));
+  as.sort((x, y) => (x.status === '待審' ? 0 : 1) - (y.status === '待審' ? 0 : 1) || appTime(y) - appTime(x));
+  const per = 15, pages = Math.max(1, Math.ceil(as.length / per)); AP2.page = Math.min(AP2.page, pages);
+  const rows = as.slice((AP2.page - 1) * per, AP2.page * per);
+  const K = AP2.kind;
+  const timeCol = { '進港預報': ['預定進港','預定離港'], '進港': ['預定進港','預定離港'], '移泊': ['預定作業時間','移泊種類／目標船席'], '出港預報': ['預定出港','次一港'], '出港': ['預定出港','次一港'] }[K];
+  const tcell = a => K === '移泊' ? [fmtS(a.f.time), `${esc(a.f.moveKind)} → ${esc(berth(a.f.berthTo)?.name || '—')}`] : K.startsWith('出港') ? [fmtS(a.f.outTime), esc(a.f.nextPort)] : [fmtS(a.f.inTime), fmtS(a.f.outTime)];
+  return `<div class="title"><h2>進出港申請</h2><span class="sub">依舊系統五種申請完整納入；申請、代申請、審核在同一個清單</span><div class="sp"></div>
+    ${ro ? '' : `<button class="btn p" onclick="openApp('${K}')">＋ ${staff ? '代申請' : '新增'}${K}申請</button>${K === '進港' ? '<button class="btn" onclick="importApply()">⇪ Excel 批次匯入</button>' : ''}`}<button class="btn" onclick="exportApps()">⇩ 匯出 Excel</button></div>
+  <div class="flow"><i>① 進港預報</i>→<i>② 進港申請</i>→<i>③ 船舶動態／靠泊</i>→<i>（移泊申請）</i>→<i>④ 出港預報</i>→<i>⑤ 出港申請＋移民署檢查</i>→<i>⑥ 出港・自動計費結案</i></div>
+  <div class="bar"><div class="seg">${KINDS.map(k => { const n = mine.filter(a => a.kind === k && a.status === '待審').length; return `<a class="${K === k ? 'on' : ''}" onclick="AP2.kind='${k}';AP2.page=1;AP.sel.clear();render()">${k}${n ? `<span class="cnt">${n}</span>` : ''}</a>`; }).join('')}</div></div>
+  <div class="bar"><input placeholder="搜尋單號／船名／航次／公司" value="${esc(AP2.q)}" onchange="AP2.q=this.value;AP2.page=1;render()">
+    <select onchange="AP2.st=this.value;AP2.page=1;render()"><option value="">全部狀態</option>${['待審','通過','退回','註銷'].map(s => `<option ${AP2.st === s ? 'selected' : ''}>${s}</option>`).join('')}</select>
+    ${staff ? `<span class="sp"></span><button class="btn g" onclick="approve([...AP.sel],'通過')">✔ 核可選取</button><button class="btn r" onclick="rejectApps([...AP.sel])">✖ 退回選取</button><button class="btn" onclick="rejectApps([...AP.sel],'註銷')">註銷選取</button>` : ''}</div>
+  <div class="tbl"><table><tr>${staff ? `<th><input type="checkbox" onchange="document.querySelectorAll('.apChk').forEach(c=>{if(!c.disabled){c.checked=this.checked;this.checked?AP.sel.add(c.value):AP.sel.delete(c.value)}})"></th>` : ''}<th>申請單號</th><th>船名</th><th>航次</th><th>申請公司</th><th>${timeCol[0]}</th><th>${timeCol[1]}</th><th>船席</th><th>狀態</th>${K === '出港' ? '<th>移民署檢查</th>' : ''}<th>操作</th></tr>
+  ${rows.map(a => { const s = ship(a.shipId), v = voy(a.voyageId), [c1, c2] = tcell(a); const own = !staff && a.status === '待審';
+    return `<tr>${staff ? `<td><input type="checkbox" class="apChk" value="${a.id}" ${AP.sel.has(a.id) ? 'checked' : ''} ${a.status === '待審' ? '' : 'disabled'} onchange="this.checked?AP.sel.add('${a.id}'):AP.sel.delete('${a.id}')"></td>` : ''}
+    <td><a style="color:var(--navy2);cursor:pointer" onclick="showApp('${a.id}')">${a.no}</a></td><td><b>${esc(s.name)}</b><div class="small muted">${esc(s.type)}</div></td><td>${v?.code || '—'}</td><td class="small">${esc(s.company)}</td><td>${c1}</td><td>${c2}</td><td>${esc(berth(a.f.berthId || v?.berthId)?.name || '—')}</td>
+    <td>${tag(a.status)}${a.reason ? `<div class="small muted">${esc(a.reason)}</div>` : ''}</td>${K === '出港' ? `<td>${a.checked ? tag('檢查完畢') : '<span class="tag t-wait">待檢查</span>'}</td>` : ''}
+    <td style="white-space:nowrap"><button class="btn s" onclick="showApp('${a.id}')">檢視</button>${ro ? '' : `${staff || own ? `<button class="btn s" onclick="openApp('${K}','${a.id}')">編輯</button>` : ''}<button class="btn s" onclick="openApp('${K}','${a.id}',true)">複製</button>${staff || own ? `<button class="btn r s" onclick="delApp('${a.id}')">刪除</button>` : ''}${staff && a.status === '待審' ? `<button class="btn g s" onclick="approve(['${a.id}'],'通過')">核可</button>` : ''}`}</td></tr>`; }).join('') || `<tr><td colspan="12" class="empty">查無${K}申請</td></tr>`}
+  </table></div>
+  <div class="pager"><span class="muted">共 ${as.length} 筆</span><button class="btn s" ${AP2.page <= 1 ? 'disabled' : ''} onclick="AP2.page--;render()">上一頁</button><span>${AP2.page} / ${pages}</span><button class="btn s" ${AP2.page >= pages ? 'disabled' : ''} onclick="AP2.page++;render()">下一頁</button></div>`;
+};
+function exportApps() { const ids = new Set(visibleShips().map(s => s.id)); downloadCSV(`${AP2.kind}申請.csv`, [['申請單號','種類','船名','航次','公司','時間','前一港','次一港','船席','狀態'], ...S.apps.filter(a => a.kind === AP2.kind && ids.has(a.shipId)).map(a => [a.no, a.kind, ship(a.shipId).name, voy(a.voyageId)?.code, ship(a.shipId).company, fmt(appTime(a)), a.f.prevPort || '', a.f.nextPort || '', berth(a.f.berthId || a.f.berthTo)?.name || '', a.status])]); }
+
+/* ---------- 審核中心 ---------- */
+let RV = { kind: '' };
+VIEWS.review = () => {
+  const pend = S.apps.filter(a => a.status === '待審' && (!RV.kind || a.kind === RV.kind)).sort((x, y) => appTime(x) - appTime(y));
+  const leave = S.apps.filter(a => a.kind === '出港' && a.status === '通過' && voy(a.voyageId) && !voy(a.voyageId).actualOut).sort((x, y) => x.f.outTime - y.f.outTime);
+  const tab = RV.kind === '檢查' ? 'chk' : 'pend';
+  return `<div class="title"><h2>審核中心</h2><span class="sub">所有種類的待審申請集中處理；系統自動檢核期限、船席衝突、證書與危險品</span></div>
+  <div class="bar"><div class="seg"><a class="${RV.kind === '' ? 'on' : ''}" onclick="RV.kind='';render()">全部待審<span class="cnt">${S.apps.filter(a => a.status === '待審').length}</span></a>${KINDS.map(k => `<a class="${RV.kind === k ? 'on' : ''}" onclick="RV.kind='${k}';render()">${k}</a>`).join('')}<a class="${tab === 'chk' ? 'on' : ''}" onclick="RV.kind='檢查';render()">出港檢查 ${leave.filter(a => !a.checked).length ? `<span class="cnt">${leave.filter(a => !a.checked).length}</span>` : ''}</a></div>
+  ${tab === 'pend' ? `<span class="sp"></span><button class="btn g" onclick="approve([...document.querySelectorAll('.rvChk:checked')].map(c=>c.value),'通過')">✔ 核可勾選</button><button class="btn r" onclick="rejectApps([...document.querySelectorAll('.rvChk:checked')].map(c=>c.value))">✖ 退回勾選</button>` : ''}</div>
+  ${tab === 'pend' ? `<div class="tbl"><table><tr><th><input type="checkbox" onchange="document.querySelectorAll('.rvChk').forEach(c=>c.checked=this.checked)"></th><th>單號</th><th>種類</th><th>船名</th><th>申請公司</th><th>時間</th><th>自動檢核</th><th></th></tr>
+  ${pend.map(a => `<tr><td><input type="checkbox" class="rvChk" value="${a.id}"></td><td>${a.no}</td><td>${tag(a.kind)}</td><td><b>${esc(ship(a.shipId).name)}</b><div class="small muted">${esc(ship(a.shipId).type)}</div></td><td class="small">${esc(ship(a.shipId).company)}</td><td>${fmtS(appTime(a))}</td><td>${condHtml(a)}</td>
+  <td style="white-space:nowrap"><button class="btn s" onclick="showApp('${a.id}')">檢視</button><button class="btn g s" onclick="approve(['${a.id}'],'通過')">核可</button><button class="btn r s" onclick="rejectApps(['${a.id}'])">退回</button></td></tr>`).join('') || '<tr><td colspan="8" class="empty">目前沒有待審核申請 👍</td></tr>'}</table></div>`
+  : `<div class="note">系統參數「檢查後才可產生出港動態」：<b>${S.params.checkBeforeLeave ? '要' : '不用'}</b>。出港申請核准且移民署檢查完畢後，船舶動態才能按「出港」。</div>
+  <div class="tbl"><table><tr><th>單號</th><th>船名</th><th>航次</th><th>預定出港</th><th>次一港</th><th>船舶狀態</th><th>移民署檢查</th><th></th></tr>${leave.map(a => { const v = voy(a.voyageId); return `<tr><td>${a.no}</td><td><b>${esc(ship(a.shipId).name)}</b></td><td>${v.code}</td><td>${fmtS(a.f.outTime)}</td><td>${esc(a.f.nextPort)}</td><td>${tag(v.move)}</td><td>${a.checked ? tag('檢查完畢') : '<span class="tag t-wait">待檢查</span>'}</td>
+  <td>${canEdit() ? `<button class="btn ${a.checked ? '' : 'g'} s" onclick="toggleCheck('${a.id}')">${a.checked ? '取消檢查' : '✔ 檢查完畢'}</button>` : ''}</td></tr>`; }).join('') || '<tr><td colspan="8" class="empty">沒有待出港船舶</td></tr>'}</table></div>`}`;
+};
+function toggleCheck(id) { const a = S.apps.find(x => x.id === id); a.checked = !a.checked; log('出港檢查', `出港 ${a.no} ${ship(a.shipId).name}`, a.checked ? '移民署檢查完畢' : '取消檢查'); save(); render(); toast(a.checked ? '已登錄移民署檢查完畢，船舶可出港' : '已取消檢查'); }
+const _depart = depart;
+depart = function (vid) {
+  const v = voy(vid); const lv = appsOf(vid, '出港').find(a => a.status === '通過');
+  if (S.params.checkBeforeLeave && (!lv || !lv.checked)) { toast(`⚠️ 尚不能出港：${!lv ? '出港申請尚未核准' : '移民署尚未檢查完畢'}。請到「審核中心」處理（系統參數：檢查後才可產生出港動態）`); return; }
+  _depart(vid);
+};
+</script>
+<script>
+/* ---------- 船舶動態（9 段＋靠泊後操作） ---------- */
+let MV = { mode: 'board', type: '', all: false, q: '' };
+const stepIdx = v => v.move === '靠泊' || v.move === '已出港' ? 8 : Math.max(0, ...(v.stepLog || []).map(x => STEPS9.indexOf(x.s)));
+const lastT = v => v.actualOut || Math.max(v.actualIn || 0, ...(v.stepLog || []).map(x => x.t), 0) || v.inTime;
+const nowStatus = v => v.move === '已出港' ? '(出港)離港' : v.move === '靠泊' ? (v.outside ? '(移泊)港外' : '(進港)靠泊') : `(進港)${STEPS9[stepIdx(v)]}`;
+function setStep(id, s) {
+  const v = voy(id); if (s === '靠泊') { if (!v.berthId) { toast('請先在下拉選單選擇靠泊船席'); return; } arrive(id); return; }
+  v.stepLog = v.stepLog || []; v.stepLog.push({ s, t: Date.now() }); v.steps = [...new Set([...(v.steps || []), s])];
+  log('動態回報', `${ship(v.shipId).name} ${v.code}`, s); save(); render(); toast(`${esc(ship(v.shipId).name)}：${s}（${fmtT(Date.now())}）`);
+}
+function moveOut(id, out) { const v = voy(id); v.outside = out; log(out ? '移泊港外' : '移泊港內', `${ship(v.shipId).name} ${v.code}`); save(); render(); toast(out ? '已登錄移泊港外' : '已移回港內'); }
+function leaveCond(v) { const lv = appsOf(v.id, '出港').find(a => a.status === '通過'); return `<div class="cond"><span class="${lv ? 'ok' : 'no'}">${lv ? '✔' : '!'} 出港申請</span><span class="${lv?.checked ? 'ok' : 'no'}">${lv?.checked ? '✔' : '!'} 移民署檢查</span></div>`; }
+VIEWS.moving = () => {
+  const ro = !canEdit(); const t0 = dayStart(0);
+  let vs = visibleVoyages().filter(v => v.status === '通過');
+  if (MV.type) vs = vs.filter(v => ship(v.shipId).type === MV.type);
+  if (MV.q) vs = vs.filter(v => (ship(v.shipId).name + v.code).includes(MV.q));
+  const a = vs.filter(v => v.move === '預報' && v.inTime < dayStart(1) && v.inTime >= dayStart(-1)).sort((x, y) => x.inTime - y.inTime);
+  const b = vs.filter(v => v.move === '靠泊').sort((x, y) => x.outTime - y.outTime);
+  const c = vs.filter(v => v.move === '已出港' && v.actualOut >= t0).sort((x, y) => y.actualOut - x.actualOut);
+  const bsel = v => `<select class="btn s" onchange="voy('${v.id}').berthId=this.value;save();render()"><option value="">船席…</option>${S.berths.map(x => `<option value="${x.id}" ${x.id === v.berthId ? 'selected' : ''}>${esc(x.name)}</option>`).join('')}</select>`;
+  const cardA = v => { const i = stepIdx(v); return `<div class="vcard"><div class="nm">${esc(ship(v.shipId).name)} <span class="muted small">${v.code}</span></div>
+    <div class="small muted">預定 ${fmtT(v.inTime)} 進港｜${esc(v.prevPort)} → ${esc(berth(v.berthId)?.name || '未指派船席')}｜目前：<b>${STEPS9[i]}</b></div>
+    <div class="prog">${STEPS9.map((s, j) => `<span class="${j <= i ? 'on' : ''}" title="${s}"></span>`).join('')}</div>
+    ${ro ? '' : `<div class="stepbtns">${STEPS9.slice(1).map((s, j) => `<span class="step ${j + 1 <= i ? 'on' : ''} ${j + 1 === i + 1 ? 'next' : ''}" onclick="setStep('${v.id}','${s}')">${s}</span>`).join('')}</div><div class="row">${bsel(v)}</div>`}</div>`; };
+  const cardB = v => `<div class="vcard"><div class="nm">${esc(ship(v.shipId).name)} <span class="muted small">${v.code}</span> ${v.outside ? '<span class="tag t-wait">港外</span>' : ''}</div>
+    <div class="small muted">${esc(berth(v.berthId)?.name || '')}｜靠泊 ${fmtT(v.actualIn)}｜預定 ${fmtS(v.outTime)} 出港 → ${esc(v.nextPort)}${v.outTime < Date.now() ? ' <span class="tag t-no">逾時</span>' : ''}</div>${leaveCond(v)}
+    ${ro ? '' : `<div class="row"><select class="btn s" onchange="moveBerth('${v.id}',this.value)"><option value="">港內移泊…</option>${S.berths.filter(x => x.id !== v.berthId).map(x => `<option value="${x.id}">${esc(x.name)}</option>`).join('')}</select>${v.outside ? `<button class="btn s" onclick="moveOut('${v.id}',false)">移泊港內</button>` : `<button class="btn s" onclick="moveOut('${v.id}',true)">移泊港外</button>`}<button class="btn r s" onclick="depart('${v.id}')">出港</button><button class="btn s" onclick="openShift('${v.id}')">航次異動</button></div>`}</div>`;
+  const cardC = v => `<div class="vcard"><div class="nm">${esc(ship(v.shipId).name)} <span class="muted small">${v.code}</span></div><div class="small muted">${fmtT(v.actualOut)} 出港 → ${esc(v.nextPort)}｜已自動結案、已計費 ${money(feeOf(v).total)} 元</div></div>`;
+  let body;
+  if (MV.mode === 'board') body = `<div class="cols"><div class="col"><h4>🕓 進港中（預報→靠泊） <span class="tag t-info">${a.length}</span></h4>${a.map(cardA).join('') || '<div class="empty">無</div>'}</div>
+    <div class="col"><h4>⚓ 靠泊中 <span class="tag t-ok">${b.length}</span></h4>${b.map(cardB).join('') || '<div class="empty">無</div>'}</div>
+    <div class="col"><h4>🚀 今日已出港 <span class="tag t-gray">${c.length}</span></h4>${c.map(cardC).join('') || '<div class="empty">無</div>'}</div></div>`;
+  else { const list = (MV.all ? vs : vs.filter(v => v.move !== '已出港')).sort((x, y) => lastT(y) - lastT(x)).slice(0, 80);
+    body = `<div class="tbl"><table><tr><th>船舶名稱</th><th>船種</th><th>航次</th><th>上一港</th><th>下一港</th><th>移動現況</th><th>最後動態時間</th><th>船席</th><th>備註</th></tr>${list.map(v => `<tr><td><b>${esc(ship(v.shipId).name)}</b></td><td>${esc(ship(v.shipId).type)}</td><td>${v.code}</td><td>${esc(v.prevPort)}</td><td>${esc(v.nextPort)}</td><td>${tag(nowStatus(v))}</td><td>${fmtS(lastT(v))}</td><td>${esc(berth(v.berthId)?.name || '—')}</td>
+    <td>${ro ? esc(v.note || '') : `<input class="btn s" style="width:140px" value="${esc(v.note || '')}" onchange="voy('${v.id}').note=this.value;log('動態備註','${esc(ship(v.shipId).name)} ${v.code}',this.value);save();toast('已儲存備註')">`}</td></tr>`).join('') || '<tr><td colspan="9" class="empty">無資料</td></tr>'}</table></div><p class="small muted">顯示最近 80 筆。舊系統未結案動態累積 84,470 筆；新系統出港即自動結案。</p>`; }
+  return `<div class="title"><h2>船舶動態</h2><span class="sub">依舊系統動態節點：預報 → VHF報到 → 通過3浬 → 通過1浬 → 下錨 → 起錨 → 允許進港 → 通過堤口 → 靠泊；靠泊後可港內移泊、移泊港外、出港</span></div>
+  <div class="bar"><div class="seg"><a class="${MV.mode === 'board' ? 'on' : ''}" onclick="MV.mode='board';render()">看板檢視</a><a class="${MV.mode === 'list' ? 'on' : ''}" onclick="MV.mode='list';render()">列表檢視</a></div>
+  <input placeholder="船名／航次" value="${esc(MV.q)}" onchange="MV.q=this.value;render()"><select onchange="MV.type=this.value;render()"><option value="">全部船種</option>${['小三通客船','貨船','漁船','遊艇','自用小船'].map(t => `<option ${MV.type === t ? 'selected' : ''}>${t}</option>`).join('')}</select>
+  ${MV.mode === 'list' ? `<label class="flex"><input type="checkbox" ${MV.all ? 'checked' : ''} onchange="MV.all=this.checked;render()">含已結案</label>` : ''}</div>${body}`;
+};
+
+/* ---------- 今日船席（時段 × 船席） ---------- */
+let BG = { off: 0 };
+VIEWS.berthgrid = () => {
+  const d0 = dayStart(BG.off); const bs = S.berths.filter(b => b.port === '水頭');
+  const occ = S.voyages.filter(v => v.status === '通過' && v.berthId).map(v => ({ v, a: v.actualIn || v.inTime, b: v.actualOut || Math.max(v.outTime, v.move === '靠泊' ? Date.now() : 0) }));
+  const nowH = BG.off === 0 ? new Date().getHours() : -1;
+  const rows = Array.from({ length: 24 }, (_, h) => { const s0 = d0 + h * 3600e3, s1 = s0 + 3600e3;
+    return `<tr><td>${pad(h)}-${pad(h + 1)}</td>${bs.map(b => { const here = occ.filter(o => o.v.berthId === b.id && o.a < s1 && o.b > s0);
+      if (!here.length) return `<td class="${h === nowH ? 'now' : ''}"></td>`;
+      const o = here[0]; const cls = !o.v.actualIn ? 'c1' : !o.v.actualOut ? 'c2' : 'c3';
+      const mark = o.a >= s0 && o.a < s1 ? `<div>靠泊：${fmtT(o.a)}</div>` : o.b >= s0 && o.b < s1 ? `<div>離泊：${fmtT(o.b)}</div>` : '';
+      return `<td class="${cls} ${h === nowH ? 'now' : ''}" title="${here.map(x => ship(x.v.shipId).name + ' ' + x.v.code).join('、')}">${here.map(x => esc(ship(x.v.shipId).name)).join('<br>')}${mark}</td>`; }).join('')}</tr>`; }).join('');
+  return `<div class="title"><h2>今日船席</h2><span class="sub">對應舊系統「今日船席查詢」：時段 × 船席一覽，可換日查詢</span><div class="sp"></div><button class="btn" onclick="go('map')">🗺️ 改用空拍圖檢視</button></div>
+  <div class="bar"><button class="btn" onclick="BG.off--;render()">‹ 前一天</button><b>${fmtD(d0)}（${WEEK[new Date(d0).getDay()]}）</b><button class="btn" onclick="BG.off++;render()">後一天 ›</button><button class="btn" onclick="BG.off=0;render()">今天</button>
+  <span class="sp"></span><span class="legend"><span><i style="background:#e3edfb"></i>未靠泊</span><span><i style="background:#e0f3e8"></i>靠泊中（未離泊）</span><span><i style="background:#eceff3"></i>已離泊</span><span><i style="background:#fff;outline:2px solid #f5b301"></i>目前時段</span></span></div>
+  <div class="card" style="padding:6px"><div class="tbl" style="max-height:70vh"><table class="bgrid"><tr><th>時段</th>${bs.map(b => `<th>${esc(b.name)}</th>`).join('')}</tr>${rows}</table></div></div>`;
+};
+
+/* ---------- 拖船作業 ---------- */
+const tugFee = t => Math.max(1, Math.ceil((t.end - t.start) / 3600e3)) * t.billHp * S.params.tugRate;
+VIEWS.tug = () => {
+  const ts = S.tugs.slice().sort((a, b) => b.start - a.start);
+  return `<div class="title"><h2>拖船作業</h2><span class="sub">拖船工作紀錄回報＋曳船費計算（進港、出港、移泊時使用拖船）</span><div class="sp"></div><button class="btn p" onclick="editTug()">＋ 新增拖船紀錄</button></div>
+  <div class="note">曳船費（DEMO 假設，待港務處提供費率）＝ 計費馬力 × 作業時數（未滿 1 小時以 1 小時計）× ${S.params.tugRate} 元，可於「基本資料 › 系統參數」調整。</div>
+  <div class="tbl"><table><tr><th>船舶名稱</th><th>船舶航次</th><th>申請單類別</th><th>拖船</th><th>作業時間</th><th class="num">拖船馬力</th><th class="num">計費馬力</th><th>拖船纜繩</th><th class="num">曳船費</th><th>計費確認</th><th></th></tr>
+  ${ts.map(t => { const v = voy(t.voyageId); return `<tr><td><b>${esc(v ? ship(v.shipId).name : '（已刪除）')}</b></td><td>${v?.code || '—'}</td><td>${esc(t.kind)}</td><td>${esc(t.tug)}</td><td>${fmtS(t.start)} ~ ${fmtT(t.end)}</td><td class="num">${t.hp}</td><td class="num">${t.billHp}</td><td>${esc(t.rope)}</td><td class="num">${money(tugFee(t))}</td><td>${t.confirmed ? tag('已確認') : '<span class="tag t-wait">未確認</span>'}</td>
+  <td style="white-space:nowrap">${t.confirmed ? '' : `<button class="btn g s" onclick="S.tugs.find(x=>x.id==='${t.id}').confirmed=fmtD(Date.now());log('曳船費確認','${v?.code}');save();render()">確認</button>`}<button class="btn s" onclick="editTug('${t.id}')">編輯</button><button class="btn r s" onclick="if(confirm('刪除此拖船紀錄？')){S.tugs=S.tugs.filter(x=>x.id!=='${t.id}');log('刪除拖船紀錄','${v?.code}');save();render()}">刪除</button></td></tr>`; }).join('') || '<tr><td colspan="11" class="empty">尚無拖船紀錄</td></tr>'}</table></div>`;
+};
+function editTug(id) {
+  const t0 = id ? S.tugs.find(t => t.id === id) : null;
+  const vo = S.voyages.filter(v => v.status === '通過' && v.inTime > dayStart(-10) && v.inTime < dayStart(3)).sort((a, b) => b.inTime - a.inTime).map(v => [v.id, `${ship(v.shipId).name} ${v.code}`]);
+  formModal({ title: id ? '編輯拖船紀錄' : '新增拖船紀錄', data: t0 || { kind: '進港', tug: '港勤1號', start: Date.now() - 1800e3, end: Date.now(), hp: 2500, billHp: 600, rope: '否' }, fields: [
+    { k: 'voyageId', label: '船舶航次', type: 'select', opts: vo, req: true }, { k: 'kind', label: '申請單類別', type: 'select', opts: ['進港','出港','移泊'] },
+    { k: 'tug', label: '拖船名稱', req: true }, { k: 'rope', label: '是否使用拖船纜繩', type: 'select', opts: ['否','是'] },
+    { k: 'start', label: '作業開始', type: 'datetime', req: true }, { k: 'end', label: '作業結束', type: 'datetime', req: true },
+    { k: 'hp', label: '拖船馬力', type: 'number', req: true }, { k: 'billHp', label: '計費馬力', type: 'number', req: true } ],
+    onSave: o => { if (o.end <= o.start) return '結束時間需晚於開始時間'; if (t0) { log('修改拖船紀錄', voy(o.voyageId)?.code, diff(t0, o)); Object.assign(t0, o); } else { S.tugs.push({ id: uid(), confirmed: '', ...o }); log('新增拖船紀錄', voy(o.voyageId)?.code); } } });
+}
+
+/* ---------- 港勤服務（加水／加油／垃圾清運／船舶小修） ---------- */
+let SV = { type: '加油' };
+const svcFee = x => x.type === '加水' && x.actual?.qty ? x.actual.qty * S.params.waterRate : 0;
+VIEWS.service = () => {
+  const ids = new Set(visibleShips().map(s => s.id)); const staff = isStaff(), ro = !canEdit();
+  const all = S.services.filter(x => ids.has(x.shipId)); const list = all.filter(x => x.type === SV.type).sort((a, b) => b.start - a.start);
+  const extra = { '加油': ['加油種類', x => esc(x.f.fuel)], '加水': ['加水量／費用', x => x.actual?.qty ? `${x.actual.qty} 噸／${money(svcFee(x))} 元` : '—'], '垃圾清運': ['現場負責人', x => esc(x.f.person)], '船舶小修': ['修理項目／危險品', x => `${esc(x.f.items)}${x.f.danger?.length ? `<div class="small muted">${x.f.danger.map(d => esc(d[0]) + '×' + d[1]).join('、')}</div>` : ''}`] }[SV.type];
+  return `<div class="title"><h2>港勤服務</h2><span class="sub">舊系統加水、加油、垃圾清運、船舶小修四套申請整併為同一流程：申請 → 審核 → 作業回報 → 計費</span><div class="sp"></div>${ro ? '' : `<button class="btn p" onclick="editSvc()">＋ ${staff ? '代申請' : '新增申請'}</button>`}</div>
+  <div class="bar"><div class="seg">${['加油','加水','垃圾清運','船舶小修'].map(t => { const n = all.filter(x => x.type === t && x.status === '待審').length; return `<a class="${SV.type === t ? 'on' : ''}" onclick="SV.type='${t}';render()">${t}${n ? `<span class="cnt">${n}</span>` : ''}</a>`; }).join('')}</div></div>
+  <div class="tbl"><table><tr><th>船舶－航次</th><th>申請公司</th><th>預計作業時間</th><th>港口／船席</th><th>${extra[0]}</th><th>狀態</th><th>作業回報</th><th></th></tr>
+  ${list.map(x => { const v = voy(x.voyageId); const s = ship(x.shipId); const own = !staff && x.status === '待審'; return `<tr><td><b>${esc(s.name)}</b><div class="small muted">${v?.code || ''}</div></td><td class="small">${esc(s.company)}</td><td>${fmtS(x.start)} ~ ${fmtS(x.end)}</td><td>水頭／${esc(berth(x.berthId)?.name || x.f.place || '—')}</td><td>${extra[1](x)}</td>
+  <td>${tag(x.status)}${x.f.reason ? `<div class="small muted">${esc(x.f.reason)}</div>` : ''}</td><td>${x.actual ? `✔ ${x.actual.qty != null ? x.actual.qty + (SV.type === '加油' ? ' 公秉' : SV.type === '加水' ? ' 噸' : '') : '完成'}` : x.status === '通過' ? '<span class="tag t-wait">未回報</span>' : '—'}</td>
+  <td style="white-space:nowrap">${ro ? '' : `${staff && x.status === '待審' ? `<button class="btn g s" onclick="svcStatus('${x.id}','通過')">核可</button><button class="btn r s" onclick="svcStatus('${x.id}','退回')">退回</button>` : ''}${staff && x.status === '通過' && !x.actual ? `<button class="btn s" onclick="svcReport('${x.id}')">作業回報</button>` : ''}${staff || own ? `<button class="btn s" onclick="editSvc('${x.id}')">編輯</button><button class="btn r s" onclick="if(confirm('刪除此申請？')){S.services=S.services.filter(y=>y.id!=='${x.id}');log('刪除港勤申請','${SV.type} ${esc(s.name)}');save();render()}">刪除</button>` : ''}`}</td></tr>`; }).join('') || `<tr><td colspan="8" class="empty">尚無${SV.type}申請</td></tr>`}</table></div>`;
+};
+function svcStatus(id, st) { const x = S.services.find(y => y.id === id); let r = ''; if (st === '退回') { r = prompt('退回原因', '時段不便，請改期'); if (r === null) return; x.f.reason = r; } x.status = st; log(st === '通過' ? '核可港勤申請' : '退回港勤申請', `${x.type} ${ship(x.shipId).name}`, r); save(); render(); toast(`已${st === '通過' ? '核可' : '退回'}，並通知申請人（模擬）`, 'ok'); }
+function svcReport(id) {
+  const x = S.services.find(y => y.id === id);
+  formModal({ title: `${x.type}作業回報`, data: { as: x.start, ae: x.end, qty: '' }, fields: [{ k: 'as', label: '實際作業時間（起）', type: 'datetime', req: true }, { k: 'ae', label: '實際作業時間（訖）', type: 'datetime', req: true },
+    ...(x.type === '加油' || x.type === '加水' ? [{ k: 'qty', label: x.type === '加油' ? '實際作業數量（公秉）' : '加水量（噸）', type: 'number', req: true, step: '0.1', hint: x.type === '加水' ? `加水費＝噸數 × ${S.params.waterRate} 元（DEMO 假設）` : '' }] : [])],
+    onSave: o => { if (o.ae <= o.as) return '結束時間需晚於開始時間'; x.actual = { start: o.as, end: o.ae, qty: o.qty === '' ? null : o.qty }; log(`${x.type}作業回報`, ship(x.shipId).name, o.qty !== '' ? `數量 ${o.qty}` : ''); toast('已回報' + (x.type === '加水' ? `，加水費 ${money(svcFee(x))} 元已列入港灣費用` : ''), 'ok'); } });
+}
+function editSvc(id) {
+  const x0 = id ? S.services.find(y => y.id === id) : null; const type = x0?.type || SV.type;
+  const ships = visibleShips().map(s => [s.id, s.name]); const sid = x0?.shipId || ships[0]?.[0];
+  const bopt = S.berths.filter(b => b.port === '水頭' && (type === '加水' ? b.water : type === '加油' ? b.oil : true)).map(b => [b.id, b.name]);
+  const dz = S.dangers.filter(d => d.on);
+  const d = x0 ? { shipId: x0.shipId, voyageId: x0.voyageId, start: x0.start, end: x0.end, berthId: x0.berthId, ...x0.f } : { shipId: sid, voyageId: vOpts(sid)[0][0], start: Date.now() + 3600e3, end: Date.now() + 2 * 3600e3, outside: '否' };
+  (x0?.f.danger || []).forEach((r, i) => { d['dk' + i] = r[0]; d['dq' + i] = r[1]; });
+  const fields = [{ sec: `${type}申請` }, { k: 'shipId', label: '船舶名稱', type: 'select', opts: ships, req: 1, onchange: () => { const v = vOpts($('#f_shipId').value); $('#f_voyageId').innerHTML = v.map(o => `<option value="${o[0]}">${esc(o[1])}</option>`).join(''); } },
+    { k: 'voyageId', label: '船舶航次', type: 'select', opts: vOpts(d.shipId), req: 1 }, { k: 'berthId', label: type === '船舶小修' ? '停泊船席' : `${type}船席`, type: 'select', opts: bopt, req: 1, hint: type === '加水' || type === '加油' ? `只列出可${type}的船席` : '' },
+    { k: 'start', label: type === '船舶小修' ? '預計開工' : '預計作業時間(起)', type: 'datetime', req: 1 }, { k: 'end', label: type === '船舶小修' ? '預計結束' : '預計作業時間(訖)', type: 'datetime', req: 1 },
+    ...(type === '加油' ? [{ k: 'fuel', label: '加油種類', type: 'select', opts: ['柴油','汽油','重油'], req: 1 }] : []),
+    ...(type === '船舶小修' ? [{ k: 'company', label: '修理公司', req: 1 }, { k: 'place', label: '工作地點', req: 1 }, { k: 'outside', label: '港外作業', type: 'radio', opts: ['否','是'] }, { k: 'items', label: '申請船舶修理項目', type: 'textarea', full: 1, req: 1 },
+      { sec: '攜帶危險物品', hint: '數量不可超過基本資料「可攜帶進港危險品」限制' }, ...[0, 1, 2].flatMap(i => [{ k: 'dk' + i, label: `品名 ${i + 1}`, type: 'select', opts: [['', '（無）'], ...dz.map(z => [z.name, `${z.name}（上限 ${z.limit}）`])] }, { k: 'dq' + i, label: `數量 ${i + 1}`, type: 'number' }]), { sec: '聯絡' }] : []),
+    { k: 'person', label: '現場負責人', req: 1 }, { k: 'phone', label: '聯絡電話', req: 1 }, { k: 'remark', label: '備註' }];
+  formModal2({ title: `${x0 ? '編輯' : isStaff() ? '代申請' : '新增'}：${type}申請`, fields, data: d, onSave: o => {
+    if (!o.voyageId) return '此船沒有可用航次'; if (o.end <= o.start) return '結束時間需晚於開始時間';
+    const danger = []; for (const i of [0, 1, 2]) { if (o['dk' + i]) { const z = dz.find(q => q.name === o['dk' + i]); if (Number(o['dq' + i]) > z.limit) return `${z.name} 超過上限 ${z.limit}`; danger.push([z.name, Number(o['dq' + i]) || 0]); } delete o['dk' + i]; delete o['dq' + i]; }
+    const { shipId, voyageId, start, end, berthId, ...f } = o; f.danger = danger;
+    if (x0) { Object.assign(x0, { shipId, voyageId, start, end, berthId }); x0.f = { ...x0.f, ...f }; log('修改港勤申請', `${type} ${ship(shipId).name}`); toast('已儲存'); }
+    else { S.services.push({ id: uid(), type, shipId, voyageId, start, end, berthId, status: isStaff() ? '通過' : '待審', f, actual: null, created: Date.now() }); log(isStaff() ? '代申請港勤' : '新增港勤申請', `${type} ${ship(shipId).name}`); toast(isStaff() ? '已代申請並核可' : '已送出，等待港務處審核', 'ok'); }
+  } });
+}
+</script>
+<script>
+/* ---------- 計費（加成＋人工調整） ---------- */
+feeOf = function (v) {
+  if (['停航取消','退回','待審'].includes(v.status)) return { hours: 0, berth: 0, garbage: 0, total: 0, rate: 0, ex: 1 };
+  const s = ship(v.shipId); const a = v.actualIn || v.inTime, b = v.actualOut || v.outTime;
+  const hours = Math.max(1, Math.ceil((b - a) / 3600e3)); const rate = rateOf(s.gt); const ex = (S.extras || []).find(x => x.name === v.extra)?.v || 1;
+  const g = S.otherFees.filter(f => f.item === '垃圾清理費');
+  let berthFee = hours * rate * ex, garbage = s.gt < 500 ? (g[0]?.amount || 0) : (g[1]?.amount || 0);
+  if (v.adj?.berth != null) berthFee = v.adj.berth; if (v.adj?.garbage != null) garbage = v.adj.garbage;
+  return { hours, berth: berthFee, garbage, total: berthFee + garbage, rate, ex };
+};
+function billOf(v) { if (!v.actualOut) return null; const ym = fmtD(v.actualOut).slice(0, 7); return S.bills.find(b => b.ym === ym && b.company === ship(v.shipId).company); }
+function adjFee(vid, k) {
+  const v = voy(vid); const f = feeOf(v); const cur = k === 'berth' ? f.berth : f.garbage;
+  const n = prompt(`調整${k === 'berth' ? '碇泊費' : '垃圾清理費'}（目前 ${cur}）`, cur); if (n === null || n === '' || isNaN(n)) return;
+  const r = prompt('調整原因（列入異動紀錄）', '依現場實際作業調整'); if (r === null) return;
+  v.adj = { ...(v.adj || {}), [k]: Number(n) }; log('費用調整', `${ship(v.shipId).name} ${v.code}`, `${k === 'berth' ? '碇泊費' : '垃圾清理費'} ${cur} → ${n}（${r}）`); save(); render();
+}
+
+/* ---------- 港灣費用 ---------- */
+let HF = { tab: '碇泊費', un: false, days: 14, co: '' };
+VIEWS.harborfee = () => {
+  const comps = [...new Set(S.ships.map(s => s.company))];
+  const from = dayStart(-HF.days);
+  let body = '';
+  if (HF.tab === '碇泊費' || HF.tab === '垃圾清理費') {
+    let vs = S.voyages.filter(v => v.status === '通過' && v.actualOut && v.actualOut >= from);
+    if (HF.co) vs = vs.filter(v => ship(v.shipId).company === HF.co);
+    if (HF.un) vs = vs.filter(v => !v.feeOk);
+    vs.sort((a, b) => b.actualOut - a.actualOut);
+    const isB = HF.tab === '碇泊費';
+    let sum = vs.reduce((t, v) => t + (isB ? feeOf(v).berth : feeOf(v).garbage), 0);
+    const pages = Math.max(1, Math.ceil(vs.length / 25)); HF.page = Math.min(HF.page || 1, pages);
+    const allN = vs.length; vs = vs.slice((HF.page - 1) * 25, HF.page * 25);
+    const pager = `<div class="pager"><span class="muted">共 ${allN} 筆</span><button class="btn s" ${HF.page <= 1 ? 'disabled' : ''} onclick="HF.page--;render()">上一頁</button><span>${HF.page} / ${pages}</span><button class="btn s" ${HF.page >= pages ? 'disabled' : ''} onclick="HF.page++;render()">下一頁</button></div>`;
+    body = `<div class="tbl"><table id="hfTbl"><tr><th>付費公司</th><th>船舶名稱-航次</th><th>實際進港時間</th><th>開始時間</th><th>結束時間</th>${isB ? '<th class="num">時數</th><th class="num">費率</th><th>加成種類</th>' : '<th class="num">總噸位</th>'}<th class="num">總金額</th><th>計費日期</th><th>出帳</th><th>銷帳日期</th><th></th></tr>
+    ${vs.map(v => { const s = ship(v.shipId), f = feeOf(v), b = billOf(v); const amt = isB ? f.berth : f.garbage; return `<tr><td class="small">${esc(s.company)}</td><td><b>${esc(s.name)}</b>-${v.code.split('-').pop()}</td><td>${fmtS(v.actualIn)}</td><td>${fmtS(v.actualIn)}</td><td>${fmtS(v.actualOut)}</td>
+    ${isB ? `<td class="num">${f.hours}</td><td class="num">${f.rate}</td><td>${canEdit() ? `<select class="btn s" onchange="voy('${v.id}').extra=this.value;log('加成設定','${esc(s.name)} ${v.code}',this.value);save();render()">${S.extras.map(x => `<option ${x.name === v.extra ? 'selected' : ''}>${esc(x.name)}</option>`).join('')}</select>` : esc(v.extra)}</td>` : `<td class="num">${s.gt}</td>`}
+    <td class="num"><b>${money(amt)}</b>${v.adj?.[isB ? 'berth' : 'garbage'] != null ? '<div class="small" style="color:var(--red)">已人工調整</div>' : ''}</td><td>${v.feeOk || '<span class="tag t-wait">未確認</span>'}</td><td>${b ? b.ym : '—'}</td><td>${b?.paid || '—'}</td>
+    <td style="white-space:nowrap">${v.feeOk ? '' : `<button class="btn g s" onclick="voy('${v.id}').feeOk=fmtD(Date.now());log('計費確認','${esc(s.name)} ${v.code}');save();render()">確認</button>`}<button class="btn s" onclick="adjFee('${v.id}','${isB ? 'berth' : 'garbage'}')">調整</button></td></tr>`; }).join('') || '<tr><td colspan="13" class="empty">查無資料</td></tr>'}
+    <tr><td colspan="${isB ? 8 : 6}" class="num"><b>合計（全部 ${allN} 筆）</b></td><td class="num"><b>${money(sum)}</b></td><td colspan="4"></td></tr></table></div>${pager}
+    <p class="small muted">${isB ? '碇泊費＝靠泊時數（未滿 1 小時以 1 小時計）× 總噸位級距費率 × 加成值（依舊系統資料推算，待港務處確認）。' : '垃圾清理費依總噸位每航次計收（未滿 500 噸 98.5 元、500 噸以上 197 元，依舊系統資料推算）。'}</p>`;
+  } else if (HF.tab === '曳船費' || HF.tab === '加水費') {
+    const isT = HF.tab === '曳船費';
+    const rows = isT ? S.tugs.filter(t => t.start >= from) : S.services.filter(x => x.type === '加水' && x.actual && x.start >= from);
+    body = `<div class="tbl"><table id="hfTbl"><tr><th>船舶名稱-航次</th><th>付費公司</th><th>${isT ? '作業類別／拖船' : '船席'}</th><th>費用起始時間</th><th>費用結束時間</th><th class="num">${isT ? '計費馬力' : '加水量(噸)'}</th><th class="num">總金額</th><th>計費確認</th></tr>
+    ${rows.map(r => { const v = voy(r.voyageId); const s = v ? ship(v.shipId) : {}; return `<tr><td><b>${esc(s.name)}</b>-${v?.code.split('-').pop() || ''}</td><td class="small">${esc(s.company)}</td><td>${isT ? esc(r.kind + '／' + r.tug) : esc(berth(r.berthId)?.name || '')}</td><td>${fmtS(isT ? r.start : r.actual.start)}</td><td>${fmtS(isT ? r.end : r.actual.end)}</td><td class="num">${isT ? r.billHp : r.actual.qty}</td><td class="num"><b>${money(isT ? tugFee(r) : svcFee(r))}</b></td><td>${isT ? (r.confirmed || '<span class="tag t-wait">未確認</span>') : tag('已回報')}</td></tr>`; }).join('') || '<tr><td colspan="8" class="empty">查無資料</td></tr>'}</table></div>`;
+  } else {
+    const co = HF.co || comps[0]; let vs = S.voyages.filter(v => v.status === '通過' && v.actualOut && v.actualOut >= from && ship(v.shipId).company === co).sort((a, b) => a.actualIn - b.actualIn);
+    let t = { b: 0, g: 0 };
+    body = `<div class="card" id="billAtt" style="border:none;padding:0"><h3 style="text-align:center">金門縣港務處　帳單附件</h3><p class="muted" style="text-align:center">${esc(co)}｜${fmtD(from)} ～ ${fmtD(Date.now())}</p>
+    <div class="tbl"><table id="hfTbl"><tr><th>船名</th><th>航次</th><th>進港時間</th><th>出港時間</th><th>上一港</th><th>進港停泊船席</th><th>下一港</th><th>航線</th><th class="num">碇泊費</th><th class="num">垃圾清理費</th><th class="num">金額合計</th></tr>
+    ${vs.map(v => { const f = feeOf(v); t.b += f.berth; t.g += f.garbage; return `<tr><td>${esc(ship(v.shipId).name)}</td><td>${v.code}</td><td>${fmtS(v.actualIn)}</td><td>${fmtS(v.actualOut)}</td><td>${esc(v.prevPort)}</td><td>水頭-${esc(berth(v.berthId)?.name || '')}</td><td>${esc(v.nextPort)}</td><td>${routeOf(v.prevPort)}</td><td class="num">${money(f.berth)}</td><td class="num">${money(f.garbage)}</td><td class="num">${money(f.total)}</td></tr>`; }).join('') || '<tr><td colspan="11" class="empty">此期間無航次</td></tr>'}
+    <tr><td colspan="8" class="num"><b>合計（${vs.length} 航次）</b></td><td class="num"><b>${money(t.b)}</b></td><td class="num"><b>${money(t.g)}</b></td><td class="num"><b>${money(t.b + t.g)}</b></td></tr></table></div></div>`;
+  }
+  return `<div class="title"><h2>港灣費用</h2><span class="sub">出港自動計費 → 確認 → 月結出帳 → 銷帳；可人工調整並留下紀錄</span><div class="sp"></div><button class="btn" onclick="downloadCSV('${HF.tab}.csv',[...$('#hfTbl').rows].map(r=>[...r.cells].map(c=>c.innerText)))">⇩ 匯出 Excel</button>${HF.tab === '帳單附件' ? '<button class="btn" onclick="window.print()">🖨 列印</button>' : ''}</div>
+  <div class="bar"><div class="seg">${['碇泊費','垃圾清理費','曳船費','加水費','帳單附件'].map(t => `<a class="${HF.tab === t ? 'on' : ''}" onclick="HF.tab='${t}';HF.page=1;render()">${t}</a>`).join('')}</div></div>
+  <div class="bar"><select onchange="HF.days=+this.value;render()">${[[7,'近 7 天'],[14,'近 14 天'],[31,'近 1 個月'],[45,'近 45 天']].map(o => `<option value="${o[0]}" ${HF.days === o[0] ? 'selected' : ''}>${o[1]}</option>`).join('')}</select>
+  <select onchange="HF.co=this.value;render()">${HF.tab === '帳單附件' ? '' : '<option value="">全部公司</option>'}${comps.map(c => `<option ${HF.co === c ? 'selected' : ''}>${esc(c)}</option>`).join('')}</select>
+  ${['碇泊費','垃圾清理費'].includes(HF.tab) ? `<label class="flex"><input type="checkbox" ${HF.un ? 'checked' : ''} onchange="HF.un=this.checked;render()">只看未確認</label>` : ''}</div><div class="card">${body}</div>`;
+};
+
+/* ---------- 航次統計 ---------- */
+let VS = { ym: '', tab: '各港航次' };
+VIEWS.vstats = () => {
+  if (!VS.ym) VS.ym = fmtD(Date.now()).slice(0, 7);
+  const [y, m] = VS.ym.split('-').map(Number); const a = new Date(y, m - 1, 1).getTime(), b = new Date(y, m, 1).getTime(); const days = (b - a) / 864e5;
+  const vs = S.voyages.filter(v => v.status === '通過' && v.actualIn && v.actualIn >= a && v.actualIn < b);
+  let body = '';
+  if (VS.tab === '各港航次') {
+    const g = {}; vs.forEach(v => { (g[v.prevPort] = g[v.prevPort] || { i: 0, o: 0 }).i++; if (v.actualOut) (g[v.nextPort] = g[v.nextPort] || { i: 0, o: 0 }).o++; });
+    const tot = Object.values(g).reduce((s, x) => s + x.i + x.o, 0) || 1;
+    body = ROUTES.map(r => { const ps = S.cports.filter(p => p.route === r && g[p.name]); if (!ps.length) return '';
+      return `<tr><td colspan="5" style="background:#f6f8fb"><b>${r}</b></td></tr>` + ps.map(p => { const x = g[p.name]; return `<tr><td>${esc(p.name)}</td><td class="num">${x.i}</td><td class="num">${x.o}</td><td class="num">${x.i + x.o}</td><td class="num">${((x.i + x.o) / tot * 100).toFixed(2)}%</td></tr>`; }).join(''); }).join('');
+    body = `<div class="tbl"><table id="vsTbl"><tr><th>對口港</th><th class="num">進港航次</th><th class="num">出港航次</th><th class="num">合計</th><th class="num">百分比</th></tr>${body || '<tr><td colspan="5" class="empty">本月無資料</td></tr>'}</table></div>`;
+  } else if (VS.tab === '航線統計') {
+    const r = {}; ROUTES.forEach(x => r[x] = { n: 0, ships: new Set() }); vs.forEach(v => { const k = routeOf(v.prevPort); r[k].n++; r[k].ships.add(v.shipId); });
+    const tot = vs.length || 1, max = Math.max(1, ...ROUTES.map(x => r[x].n));
+    body = `<div class="kpis"><div class="kpi"><div class="n">${vs.length}</div><div class="l">本港總計航次</div></div><div class="kpi"><div class="n">${(vs.length / days).toFixed(2)}</div><div class="l">日平均航次</div></div><div class="kpi"><div class="n">${(vs.length / days * 7).toFixed(2)}</div><div class="l">週平均航次</div></div><div class="kpi"><div class="n">${new Set(vs.map(v => v.shipId)).size}</div><div class="l">艘次</div></div></div>
+    <div class="tbl"><table id="vsTbl"><tr><th>航線</th><th class="num">航次</th><th class="num">艘次</th><th class="num">日平均航次</th><th class="num">週平均航次</th><th class="num">百分比</th><th style="width:30%"></th></tr>${ROUTES.map(x => `<tr><td>${x}</td><td class="num">${r[x].n}</td><td class="num">${r[x].ships.size}</td><td class="num">${(r[x].n / days).toFixed(2)}</td><td class="num">${(r[x].n / days * 7).toFixed(2)}</td><td class="num">${(r[x].n / tot * 100).toFixed(1)}%</td><td><div style="height:12px;background:#2f6fd6;border-radius:3px;width:${r[x].n / max * 100}%"></div></td></tr>`).join('')}</table></div>`;
+  } else {
+    const g = {}; vs.forEach(v => { const x = g[v.shipId] = g[v.shipId] || { n: 0, r: {} }; x.n++; const k = routeOf(v.prevPort); x.r[k] = (x.r[k] || 0) + 1; });
+    body = `<div class="tbl"><table id="vsTbl"><tr><th>船舶名稱</th><th class="num">總噸位</th><th>公司名稱</th><th class="num">總計航次</th><th class="num">週平均航次</th>${ROUTES.map(r => `<th class="num">${r.replace('航線', '')}</th>`).join('')}</tr>${Object.entries(g).sort((p, q) => q[1].n - p[1].n).map(([id, x]) => { const s = ship(id); return `<tr><td><b>${esc(s.name)}</b></td><td class="num">${s.gt}</td><td class="small">${esc(s.company)}</td><td class="num">${x.n}</td><td class="num">${(x.n / days * 7).toFixed(2)}</td>${ROUTES.map(r => `<td class="num">${x.r[r] || 0}</td>`).join('')}</tr>`; }).join('') || '<tr><td colspan="10" class="empty">本月無資料</td></tr>'}</table></div>`;
+  }
+  return `<div class="title"><h2>航次統計</h2><span class="sub">對應舊系統「港航次月統計表」「船舶航次月統計表」；只統計已進港靠泊的船舶，依進港靠泊時間</span><div class="sp"></div><button class="btn" onclick="downloadCSV('航次統計_${VS.ym}_${VS.tab}.csv',[...$('#vsTbl').rows].map(r=>[...r.cells].map(c=>c.innerText)))">⇩ 匯出 Excel</button></div>
+  <div class="bar"><span>港口：水頭</span><input type="month" value="${VS.ym}" onchange="VS.ym=this.value;render()"><div class="seg">${['各港航次','航線統計','船舶航次'].map(t => `<a class="${VS.tab === t ? 'on' : ''}" onclick="VS.tab='${t}';render()">${t}</a>`).join('')}</div></div><div class="card">${body}</div>`;
+};
+
+/* ---------- 基本資料：新增分頁 ---------- */
+const MTABS = [['ships','船舶'],['berths','船席'],['ports','作業港口'],['cports','對口港'],['dangers','危險品'],['extras','加成設定'],['params','系統參數']];
+const MX = {
+  cports: () => `<div class="bar"><span class="muted">申請表「前一港／次一港」選項，並決定航線統計歸類；保留 MtNet 代碼對應</span><span class="sp"></span><button class="btn p" onclick="editCport()">＋ 新增對口港</button></div>
+    <div class="tbl"><table><tr><th>港名</th><th>航線類別</th><th>MtNet 代碼</th><th></th></tr>${S.cports.map(p => `<tr><td><b>${esc(p.name)}</b></td><td>${esc(p.route)}</td><td>${esc(p.mtnet)}</td><td><button class="btn s" onclick="editCport('${p.id}')">編輯</button><button class="btn r s" onclick="if(confirm('刪除？')){S.cports=S.cports.filter(x=>x.id!=='${p.id}');log('刪除對口港','${esc(p.name)}');save();render()}">刪除</button></td></tr>`).join('')}</table></div>`,
+  dangers: () => `<div class="bar"><span class="muted">船舶小修等申請可攜帶進港的危險品與數量上限</span><span class="sp"></span><button class="btn p" onclick="editDanger()">＋ 新增危險品</button></div>
+    <div class="tbl"><table><tr><th>品名</th><th class="num">限制數量</th><th>是否有效</th><th></th></tr>${S.dangers.map(d => `<tr><td><b>${esc(d.name)}</b></td><td class="num">${d.limit}</td><td>${d.on ? '是' : '否'}</td><td><button class="btn s" onclick="editDanger('${d.id}')">編輯</button><button class="btn r s" onclick="if(confirm('刪除？')){S.dangers=S.dangers.filter(x=>x.id!=='${d.id}');log('刪除危險品','${esc(d.name)}');save();render()}">刪除</button></td></tr>`).join('')}</table></div>`,
+  extras: () => `<div class="bar"><span class="muted">碇泊費加成值（在「港灣費用」逐航次選擇）</span><span class="sp"></span><button class="btn p" onclick="editExtra()">＋ 新增加成</button></div>
+    <div class="tbl"><table><tr><th>費用項目</th><th>加成種類名稱</th><th class="num">加成值</th><th></th></tr>${S.extras.map(x => `<tr><td>${esc(x.item)}</td><td><b>${esc(x.name)}</b></td><td class="num">${x.v}</td><td><button class="btn s" onclick="editExtra('${x.id}')">編輯</button><button class="btn r s" onclick="if(confirm('刪除？')){S.extras=S.extras.filter(y=>y.id!=='${x.id}');log('刪除加成','${esc(x.name)}');save();render()}">刪除</button></td></tr>`).join('')}</table></div>`,
+  params: () => `<div class="kv" style="grid-template-columns:260px 1fr;max-width:720px">${[['preDays','可預先申請天數','天'],['autoLogout','自動登出時間','分鐘'],['ledRows','LED 顯示筆數','筆'],['tugRate','曳船費單價（DEMO）','元／匹馬力·時'],['waterRate','加水費單價（DEMO）','元／噸']].map(([k, l, u]) => `<b>${l}</b><span><input type="number" class="btn" style="width:120px" value="${S.params[k]}" onchange="S.params['${k}']=+this.value;log('系統參數','${l}',this.value);save();toast('已儲存')"> ${u}</span>`).join('')}
+    <b>「檢查」後才可產生出港動態</b><span><select class="btn" onchange="S.params.checkBeforeLeave=this.value==='1';log('系統參數','檢查後才可出港',this.options[this.selectedIndex].text);save();toast('已儲存')"><option value="1" ${S.params.checkBeforeLeave ? 'selected' : ''}>要</option><option value="0" ${S.params.checkBeforeLeave ? '' : 'selected'}>不用</option></select></span></div>`,
+};
+function editCport(id) { const p0 = id ? S.cports.find(p => p.id === id) : null; formModal({ title: id ? '編輯對口港' : '新增對口港', data: p0 || { route: '其他航線' }, fields: [{ k: 'name', label: '港名', req: true }, { k: 'route', label: '航線類別', type: 'select', opts: ROUTES }, { k: 'mtnet', label: 'MtNet 代碼' }], onSave: o => { if (p0) { log('修改對口港', p0.name, diff(p0, o)); Object.assign(p0, o); } else { S.cports.push({ id: uid(), ...o }); log('新增對口港', o.name); } } }); }
+function editDanger(id) { const d0 = id ? S.dangers.find(d => d.id === id) : null; formModal({ title: id ? '編輯危險品' : '新增危險品', data: d0 ? { ...d0, on: d0.on ? '是' : '否' } : { on: '是' }, fields: [{ k: 'name', label: '品名', req: true }, { k: 'limit', label: '限制數量', type: 'number', req: true }, { k: 'on', label: '是否有效', type: 'select', opts: ['是','否'] }], onSave: o => { o.on = o.on === '是'; if (d0) { log('修改危險品', d0.name, diff(d0, o)); Object.assign(d0, o); } else { S.dangers.push({ id: uid(), ...o }); log('新增危險品', o.name); } } }); }
+function editExtra(id) { const x0 = id ? S.extras.find(x => x.id === id) : null; formModal({ title: id ? '編輯加成' : '新增加成', data: x0 || { item: '碇泊費', v: 1 }, fields: [{ k: 'item', label: '費用項目', type: 'select', opts: ['碇泊費'] }, { k: 'name', label: '加成種類名稱', req: true }, { k: 'v', label: '加成值', type: 'number', step: '0.1', req: true }], onSave: o => { if (x0) { log('修改加成', x0.name, diff(x0, o)); Object.assign(x0, o); } else { S.extras.push({ id: uid(), ...o }); log('新增加成', o.name); } } }); }
+
+/* ---------- 啟動 ---------- */
+load(); migrateV2(); save(); render();
 </script>
 </body>
 </html>
