@@ -148,7 +148,7 @@ td.num,th.num{text-align:right}
 <header>
   <button class="hbtn" id="menuBtn" onclick="document.querySelector('nav').classList.toggle('open')">☰</button>
   <div class="logo">⚓</div>
-  <h1>金門港 新港埠資訊系統</h1><span class="demo">DEMO V6</span>
+  <h1>金門港 新港埠資訊系統</h1><span class="demo">DEMO V7</span>
   <div class="sp"></div>
   <span id="cloudLbl" class="small" title="資料儲存位置"></span><span id="dateLbl" class="small"></span>
   <select id="userSel" title="切換登入身分（展示權限控管）"></select>
@@ -167,7 +167,7 @@ td.num,th.num{text-align:right}
    - 資料存在瀏覽器（localStorage），「重設資料」可回到初始狀態
    - 所有資料皆為展示用模擬資料
    ============================================================ */
-const KEY = 'kmport-demo-v6';
+const KEY = 'kmport-demo-v7';
 const $ = s => document.querySelector(s);
 const pad = n => String(n).padStart(2, '0');
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -1996,7 +1996,7 @@ function shipPopup(v, ro) {
 }
 function berthPopup(b) { const st = berthState(b); return `<b>⚓ ${esc(b.name)}</b>（${esc(b.type)}）<br>${st.occ.map(v => '靠泊：' + esc(ship(v.shipId).name)).join('<br>') || '目前空泊位'}${st.sch.length ? '<br>今日排定：' + st.sch.map(v => `${esc(ship(v.shipId).name)} ${fmtT(v.inTime)}`).join('、') : ''}`; }
 const MAP_LEGEND = `<div class="legend"><span><i style="background:#2f80ed"></i>小三通客船</span><span><i style="background:#f2c94c"></i>貨船</span><span><i style="background:#fff;border:1px solid #999"></i>遊艇</span><span><i style="background:#6fcf97"></i>自用小船</span><span><i style="background:#eb5757"></i>漁船</span>
-  <span>｜船席框色：<i style="background:#2e9d5b"></i>空 <i style="background:#e0a100"></i>今日已排 <i style="background:#d64545"></i>靠泊中</span><span>虛線＝今日排定、<span style="background:#e53525;color:#fff;border-radius:50%;padding:0 4px">!</span>＝超過預定離港</span></div>`;
+  <span>｜船席框色：<i style="background:#2e9d5b"></i>空 <i style="background:#e0a100"></i>今日已排 <i style="background:#d64545"></i>靠泊中</span><span>虛線＝今日排定、<span style="background:#e53525;color:#fff;border-radius:50%;padding:0 4px">!</span>＝超過預定離港</span><span style="flex-basis:100%">📍 <b>S1～S3</b>＝北堤東側新旅運中心浮動碼頭（主要）｜大小金浮動、2號、3號、S4、南堤＝北堤西側舊旅運碼頭（備用）｜左下角可切換「新碼頭／舊碼頭／全港」</span></div>`;
 const _mapView = VIEWS.map;
 VIEWS.map = () => {
   if (MAPLV !== 'harbor') return _mapView();
@@ -2150,6 +2150,10 @@ if (cloudOn()) {
 <style>
 /* ===== V6 ===== */
 #modal{z-index:3000}
+/* V7：地圖自成一層，手機選單不再被地圖蓋住 */
+.mapbox,.lmap{position:relative;z-index:0}
+nav{z-index:2000}
+@media (max-width:820px){.lsearch .lsx{display:none}.lsearch{flex-wrap:wrap;max-width:calc(100vw - 60px)}}
 #toast{z-index:3100}
 .lmap{height:max(680px,76vh)}
 .shiptip{background:rgba(255,250,170,.95);border:1px solid #b9a300;border-radius:10px;padding:0 7px;font-size:12px;font-weight:700;color:#10233d;box-shadow:0 1px 3px rgba(0,0,0,.3)}
@@ -2180,7 +2184,21 @@ if (cloudOn()) {
    ============================================================ */
 
 /* ---------- 船席實景座標（依空拍圖判讀，可在地圖上拖曳校正） ---------- */
-Object.assign(BPOS, { S4: [24.41662, 118.28512, -90], SB: [24.41590, 118.28512, -90], CG: [24.41838, 118.29170, 0] });
+// V7：依國土測繪中心正射影像（2022）量測
+// 新旅運中心（北堤東側，主要）：三座浮動碼頭 S1／S2／S3，各浮台約 62m×23m，船靠浮台兩側
+// 舊旅運碼頭（北堤西側，備用）：大小金浮動、2號（2左／2右）、3號（3左／3右）；西側 L 型碼頭：S4、南堤
+Object.assign(BPOS, {
+  S1L: [24.418843, 118.290300, -90], S1R: [24.418843, 118.290665, -90],
+  S2L: [24.418843, 118.291163, -90], S2R: [24.418843, 118.291527, -90],
+  S3L: [24.418843, 118.292031, -90], S3R: [24.418843, 118.292396, -90],
+  NB: [24.419380, 118.289020, -90],
+  CG: [24.418420, 118.293540, 0], EB: [24.418700, 118.294850, 0], EY: [24.418420, 118.294300, 0],
+  O2L: [24.416721, 118.287332, -90], O2R: [24.416721, 118.287616, -90],
+  O3L: [24.416833, 118.288072, -90], O3R: [24.416833, 118.288340, -90],
+  DXJ: [24.416500, 118.286089, -90],
+  S4: [24.416598, 118.284936, -90], SB: [24.415961, 118.284936, -90],
+});
+const NEWPIER = ['S1L', 'S1R', 'S2L', 'S2R', 'S3L', 'S3R'], OLDPIER = ['DXJ', 'O2L', 'O2R', 'O3L', 'O3R', 'S4', 'SB'];
 const MPD = 111320;
 const offLL = (la, ln, dx, dy) => [la + dy / MPD, ln + dx / (MPD * Math.cos(la * Math.PI / 180))];
 const polyAt = (c, rot, pts) => pts.map(([a, w]) => rot === -90 ? offLL(c[0], c[1], w, a) : offLL(c[0], c[1], a, -w));
@@ -2188,7 +2206,7 @@ const rectPts = (L, W) => [[-L / 2, -W / 2], [L / 2, -W / 2], [L / 2, W / 2], [-
 const hullPts = (L, W) => [[-L / 2, -W / 2], [L / 2 - W * .9, -W / 2], [L / 2, 0], [L / 2 - W * .9, W / 2], [-L / 2, W / 2]];
 const bSize = b => b.cap > 1 ? [72, 26] : b.type === '小三通客輪' ? [62, 16] : [72, 18];
 const sSize = s => s.type === '小三通客船' ? [46, 11] : s.type === '貨船' ? [62, 13] : s.type === '漁船' ? [22, 7] : s.type === '遊艇' ? [16, 6] : [13, 5];
-const MAPVIEW_KEY = 'kmport-mapview-v6';
+const MAPVIEW_KEY = 'kmport-mapview-v7';
 const getMV = () => { try { return JSON.parse(localStorage.getItem(MAPVIEW_KEY)); } catch (e) { return null; } };
 const setMV = v => { try { localStorage.setItem(MAPVIEW_KEY, JSON.stringify(v)); } catch (e) {} };
 const getBase = () => { try { return localStorage.getItem('kmport-mapbase') || 'PHOTO2'; } catch (e) { return 'PHOTO2'; } };
@@ -2201,8 +2219,7 @@ buildMap = function (ro) {
   const mv = getMV();
   if (mv) m.setView(mv.c, mv.z);
   else {
-    const pts = ['S4', 'SB', 'S1L', 'S1R', 'S2L', 'S2R', 'S3L', 'S3R'].map(id => berth(id)).filter(Boolean).flatMap(b => { const [la, ln, rot] = bpos(b); const [BL] = bSize(b); return [offLL(la, ln, 0, BL / 2 + 10), offLL(la, ln, 0, -BL / 2 - 20)]; });
-    m.fitBounds(L.latLngBounds(pts.length ? pts : [[24.4160, 118.2848], [24.4170, 118.2885]]), { paddingTopLeft: [20, 30], paddingBottomRight: [20, 80], maxZoom: 19 });
+    fitArea(m, MAPAREA || 'new');
   }
   const bl = {}; Object.entries(BASES).forEach(([k, b]) => bl[b.name] = L.tileLayer(b.url, { maxZoom: 21, maxNativeZoom: 19, attribution: b.attr }));
   bl[BASES[getBase()]?.name || BASES.PHOTO2.name].addTo(m);
@@ -2245,12 +2262,12 @@ buildMap = function (ro) {
   });
   const Search = L.Control.extend({ onAdd() {
     const d = L.DomUtil.create('div', 'lsearch');
-    d.innerHTML = `<span>🔎</span><select id="lsBerth"><option value="">船席</option>${S.berths.filter(b => b.port === '水頭').map(b => `<option value="${b.id}">${esc(b.name)}</option>`).join('')}</select><input id="lsShip" placeholder="船名">${staff ? `<label class="small"><input type="checkbox" id="lsEdit" ${BERTH_EDIT ? 'checked' : ''}> 調整船席位置</label>` : ''}<button class="btn s" id="lsHome" title="回到碼頭全景">⌂</button>`;
+    d.innerHTML = `<span>🔎</span><select id="lsBerth"><option value="">船席</option>${S.berths.filter(b => b.port === '水頭').map(b => `<option value="${b.id}">${esc(b.name)}</option>`).join('')}</select><input id="lsShip" placeholder="船名"><span class="seg" style="font-size:12px"><a class="${MAPAREA === 'new' ? 'on' : ''}" data-area="new">新碼頭</a><a class="${MAPAREA === 'old' ? 'on' : ''}" data-area="old">舊碼頭</a><a class="${MAPAREA === 'all' ? 'on' : ''}" data-area="all">全港</a></span>${staff ? `<label class="small lsx"><input type="checkbox" id="lsEdit" ${BERTH_EDIT ? 'checked' : ''}> 校正位置</label>` : ''}`;
     L.DomEvent.disableClickPropagation(d); L.DomEvent.disableScrollPropagation(d);
     setTimeout(() => {
       $('#lsBerth').onchange = e => { const b = berth(e.target.value); if (b) { m.flyTo(bpos(b).slice(0, 2), 19.5); if (!ro) setTimeout(() => selBerth(b.id), 900); } };
       $('#lsShip').onchange = e => { const q = e.target.value.trim(); const v = S.voyages.find(x => x.status === '通過' && (x.move === '靠泊' || x.move === '預報') && ship(x.shipId).name.includes(q) && shipPolys[x.id]); if (!v) { toast('目前港內查無此船'); return; } m.flyTo(shipPolys[v.id].c, 19.5); setTimeout(() => { if (LMAP === m) shipPolys[v.id].poly.openPopup(shipPolys[v.id].c); }, 900); };
-      $('#lsHome').onclick = () => { setMV(null); render(); };
+      d.querySelectorAll('[data-area]').forEach(a => a.onclick = () => { MAPAREA = a.dataset.area; d.querySelectorAll('[data-area]').forEach(x => x.classList.toggle('on', x === a)); fitArea(m, MAPAREA); });
       const ed = $('#lsEdit'); if (ed) ed.onchange = e => { BERTH_EDIT = e.target.checked; render(); toast(BERTH_EDIT ? '可拖曳船席名稱標籤到正確位置，放開即儲存' : '已關閉位置調整'); };
     });
     return d; } });
@@ -2278,44 +2295,63 @@ function enableShipDrag(m, poly, v, b) {
 }
 
 /* ---------- 示意圖：與實景同方向（北在上、陸地在下、碼頭朝北） ---------- */
-const SCH = { S4: [128, 238, 40, 112], SB: [128, 368, 40, 112], S1L: [276, 292, 40, 160], S1R: [344, 292, 40, 160], S2L: [426, 292, 40, 160], S2R: [494, 292, 40, 160],
-  S3L: [576, 292, 40, 160], S3R: [644, 292, 40, 160], NB: [722, 40, 40, 150], CG: [800, 252, 180, 42], EB: [812, 110, 170, 52], EY: [812, 176, 170, 44] };
+// V7 示意圖：與實景同方向（北在上）。北堤西側＝舊旅運碼頭（備用）；北堤東側＝新旅運中心（主要）
+const SCH = {
+  S4: [62, 262, 38, 110], SB: [62, 392, 38, 110],
+  DXJ: [128, 360, 40, 130],
+  O2L: [258, 344, 38, 130], O2R: [322, 344, 38, 130],
+  O3L: [398, 318, 38, 130], O3R: [462, 318, 38, 130],
+  NB: [476, 50, 38, 140],
+  S1L: [552, 232, 38, 140], S1R: [616, 232, 38, 140],
+  S2L: [682, 232, 38, 140], S2R: [746, 232, 38, 140],
+  S3L: [812, 232, 38, 140], S3R: [876, 232, 38, 140],
+  CG: [924, 372, 72, 40], EB: [860, 112, 136, 46], EY: [880, 166, 116, 40],
+};
 aerialSVG = function () {
   const R = rng(11);
   let tex = '';
-  for (let i = 0; i < 70; i++) { const x = R() * 770, y = 520 + R() * 115; if (x > 370 && x < 630 && y < 615) continue; tex += `<rect x="${x}" y="${y}" width="${8 + R() * 24}" height="${6 + R() * 16}" fill="hsl(${30 + R() * 30},${10 + R() * 20}%,${55 + R() * 25}%)" opacity=".9"/>`; }
-  for (let i = 0; i < 40; i++) { const x = 800 + R() * 190, y = 320 + R() * 310; tex += `<rect x="${x}" y="${y}" width="${8 + R() * 20}" height="${6 + R() * 16}" fill="hsl(${30 + R() * 30},12%,${58 + R() * 20}%)"/>`; }
-  for (let i = 0; i < 55; i++) { const x = R() * 770, y = 525 + R() * 110; tex += `<circle cx="${x}" cy="${y}" r="${4 + R() * 8}" fill="hsl(${95 + R() * 30},35%,${28 + R() * 14}%)" opacity=".85"/>`; }
-  let waves = ''; for (let i = 0; i < 90; i++) { const x = R() * 1000, y = R() * 480; waves += `<path d="M${x} ${y} q8 -4 16 0" stroke="#fff" stroke-opacity=".18" fill="none"/>`; }
-  let park = ''; for (let r = 0; r < 3; r++) for (let c = 0; c < 8; c++) park += `<rect x="${648 + c * 14}" y="${548 + r * 22}" width="10" height="16" fill="${R() < .6 ? ['#c33','#eee','#246','#888','#dd3'][Math.floor(R() * 5)] : 'none'}" stroke="#ddd" stroke-width=".6"/>`;
+  for (let i = 0; i < 60; i++) { const x = R() * 515, y = 528 + R() * 108; if (x > 150 && x < 470 && y < 612) continue; tex += `<rect x="${x}" y="${y}" width="${8 + R() * 22}" height="${6 + R() * 14}" fill="hsl(${30 + R() * 30},${10 + R() * 20}%,${55 + R() * 25}%)" opacity=".9"/>`; }
+  for (let i = 0; i < 45; i++) { const x = 545 + R() * 450, y = 530 + R() * 105; tex += `<rect x="${x}" y="${y}" width="${8 + R() * 20}" height="${6 + R() * 14}" fill="hsl(${30 + R() * 30},12%,${58 + R() * 20}%)"/>`; }
+  for (let i = 0; i < 45; i++) { const x = R() * 515, y = 535 + R() * 100; tex += `<circle cx="${x}" cy="${y}" r="${4 + R() * 7}" fill="hsl(${95 + R() * 30},35%,${28 + R() * 14}%)" opacity=".85"/>`; }
+  let waves = ''; for (let i = 0; i < 90; i++) { const x = R() * 1000, y = R() * 400; waves += `<path d="M${x} ${y} q8 -4 16 0" stroke="#fff" stroke-opacity=".18" fill="none"/>`; }
   const berths = S.berths.filter(b => b.port === '水頭').map(b => {
-    const g = SCH[b.id] || [b.x ?? 900, b.y ?? 400, b.w || 70, b.h || 32];
+    const g = SCH[b.id] || [b.x ?? 900, b.y ?? 470, b.w || 70, b.h || 32];
     const bb = { ...b, x: g[0], y: g[1], w: g[2], h: g[3] };
     const st = berthState(b); const col = { free: '#2e9d5b', sch: '#e0a100', part: '#e07b00', full: '#d64545' }[st.state];
     const vert = bb.h > bb.w;
     const shipsHere = st.occ.map((v, i) => shipIcon(bb, v, i, vert)).join('');
     const ly = vert ? bb.y + bb.h + 14 : bb.y - 5;
-    return `<g class="berth ${MAPSEL === b.id ? 'sel' : ''}" data-bid="${b.id}" onclick="selBerth('${b.id}')"><rect class="b" x="${bb.x}" y="${bb.y}" width="${bb.w}" height="${bb.h}" rx="4" fill="${col}" fill-opacity=".35" stroke="${col}" stroke-width="2"/>${shipsHere}
+    const old = OLDPIER.includes(b.id);
+    return `<g class="berth ${MAPSEL === b.id ? 'sel' : ''}" data-bid="${b.id}" onclick="selBerth('${b.id}')"><rect class="b" x="${bb.x}" y="${bb.y}" width="${bb.w}" height="${bb.h}" rx="4" fill="${col}" fill-opacity="${old ? .22 : .35}" stroke="${col}" stroke-width="2" ${old ? 'stroke-dasharray="5 3"' : ''}/>${shipsHere}
       <text x="${bb.x + bb.w / 2}" y="${ly}" text-anchor="middle" font-size="12" font-weight="700" fill="#fff" stroke="#0b2a4a" stroke-width="3" paint-order="stroke">${esc(b.name)}${st.sch.length ? ' ⏱' + st.sch.length : ''}</text></g>`;
   }).join('');
   return `<svg viewBox="0 0 1000 640" xmlns="http://www.w3.org/2000/svg">
-  <defs><linearGradient id="sea6" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#174f78"/><stop offset="1" stop-color="#2f7fa8"/></linearGradient>
-  <linearGradient id="sand6" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#e3d6ad"/><stop offset="1" stop-color="#cbbd94"/></linearGradient></defs>
-  <rect width="1000" height="640" fill="url(#sea6)"/>${waves}
-  <path d="M0 640 V512 Q120 500 240 506 Q400 516 560 504 Q680 498 778 506 V300 H1000 V640 Z" fill="#7d8f63"/>
-  <path d="M0 512 Q120 500 240 506 Q400 516 560 504 Q680 498 778 506 L778 518 Q680 510 560 516 Q400 528 240 518 Q120 512 0 524Z" fill="url(#sand6)"/>
-  <rect x="778" y="296" width="222" height="10" fill="url(#sand6)"/>
+  <defs><linearGradient id="sea7" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#174f78"/><stop offset="1" stop-color="#2f7fa8"/></linearGradient>
+  <linearGradient id="sand7" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#e3d6ad"/><stop offset="1" stop-color="#cbbd94"/></linearGradient></defs>
+  <rect width="1000" height="640" fill="url(#sea7)"/>${waves}
+  <path d="M0 640 V528 Q140 516 300 524 Q420 530 520 520 V420 H1000 V640 Z" fill="#7d8f63"/>
+  <path d="M0 528 Q140 516 300 524 Q420 530 520 520 L520 532 Q420 542 300 536 Q140 528 0 540Z" fill="url(#sand7)"/>
+  <rect x="540" y="412" width="460" height="12" fill="#cfc8b5"/>
+  <rect x="540" y="424" width="460" height="216" fill="#c8bb95" opacity=".55"/>
   ${tex}
-  <path d="M0 628 L780 620" stroke="#bfb9ad" stroke-width="9"/><path d="M500 640 V615" stroke="#bfb9ad" stroke-width="7"/><path d="M880 640 V320" stroke="#bfb9ad" stroke-width="8"/>
-  <rect x="370" y="534" width="250" height="78" fill="#e9ecef" stroke="#9aa"/><rect x="380" y="544" width="230" height="58" fill="#cfd8dc"/><text x="495" y="579" text-anchor="middle" font-size="14" fill="#33424f" font-weight="700">旅客服務中心</text>
-  <rect x="640" y="540" width="124" height="76" fill="#5f6b73" opacity=".7"/>${park}<text x="702" y="535" text-anchor="middle" font-size="11" fill="#fff">停車場</text>
-  <rect x="104" y="226" width="22" height="290" fill="#d7d2c4" stroke="#8d8676"/>
-  ${[320, 470, 620].map(x => `<rect x="${x}" y="280" width="20" height="230" fill="#d7d2c4" stroke="#8d8676"/>`).join('')}
-  <rect x="766" y="16" width="24" height="292" fill="#9c9c9c"/><rect x="772" y="16" width="12" height="292" fill="#bdbdbd" stroke-dasharray="4 3"/>
-  <rect x="802" y="104" width="6" height="128" fill="#c9c2b0"/>
-  <text x="300" y="40" text-anchor="middle" font-size="13" fill="#e3f2ff" font-weight="700">⇡ 港口出入口（往北）</text>
-  <text x="975" y="30" text-anchor="end" font-size="14" fill="#e3f2ff" font-weight="700">N ↑</text>
-  <text x="20" y="630" font-size="11" fill="#fff" opacity=".85">※ 示意圖，方位與實景地圖相同（北在上）</text>
+  <!-- 舊旅運碼頭 -->
+  <rect x="40" y="250" width="18" height="282" fill="#d7d2c4" stroke="#8d8676"/><rect x="58" y="250" width="70" height="12" fill="#d7d2c4" stroke="#8d8676"/>
+  <rect x="172" y="372" width="34" height="110" fill="#d7d2c4" stroke="#8d8676"/><rect x="180" y="482" width="10" height="44" fill="#a49d8c"/>
+  <rect x="300" y="336" width="18" height="190" fill="#d7d2c4" stroke="#8d8676"/>
+  <rect x="440" y="310" width="18" height="216" fill="#d7d2c4" stroke="#8d8676"/>
+  <rect x="150" y="548" width="330" height="62" fill="#c98f86" opacity=".85" stroke="#8a5a52"/><text x="315" y="584" text-anchor="middle" font-size="13" fill="#3a2522" font-weight="700">舊旅運中心</text>
+  <text x="270" y="300" text-anchor="middle" font-size="13" fill="#ffe9a8" font-weight="700">舊旅運碼頭（備用）</text>
+  <!-- 北堤 -->
+  <rect x="518" y="16" width="22" height="410" fill="#9c9c9c"/><rect x="524" y="16" width="10" height="410" fill="#bdbdbd" stroke-dasharray="4 3"/>
+  <text x="529" y="12" text-anchor="middle" font-size="11" fill="#e3f2ff">北堤</text>
+  <!-- 新旅運中心：三座浮動碼頭 -->
+  ${[592, 722, 852].map((x, i) => `<rect x="${x}" y="228" width="22" height="146" fill="#f4f6f8" stroke="#8d8676"/><rect x="${x + 7}" y="374" width="8" height="40" fill="#cfd8dc" stroke="#8d8676"/><text x="${x + 11}" y="222" text-anchor="middle" font-size="12" fill="#fff" font-weight="700">S${i + 1}</text>`).join('')}
+  <rect x="600" y="452" width="300" height="70" fill="#e9ecef" stroke="#9aa"/><rect x="610" y="462" width="280" height="50" fill="#cfd8dc"/><text x="750" y="493" text-anchor="middle" font-size="14" fill="#33424f" font-weight="700">水頭商港旅運中心（新）</text>
+  <text x="735" y="200" text-anchor="middle" font-size="13" fill="#bff3c9" font-weight="700">新旅運中心浮動碼頭（主要）</text>
+  <path d="M0 628 L1000 628" stroke="#bfb9ad" stroke-width="8"/>
+  <text x="250" y="40" text-anchor="middle" font-size="13" fill="#e3f2ff" font-weight="700">⇡ 港口出入口（往北）</text>
+  <text x="985" y="30" text-anchor="end" font-size="14" fill="#e3f2ff" font-weight="700">N ↑</text>
+  <text x="12" y="622" font-size="11" fill="#fff" opacity=".85">※ 示意圖，方位與實景地圖相同（北在上）；虛線框＝舊碼頭備用船席</text>
   ${berths}</svg>`;
 };
 </script>
@@ -2426,6 +2462,28 @@ openShift = function (id) {
 };
 const _about6 = showAbout;
 showAbout = function () { _about6(); $('#modal .mbody')?.insertAdjacentHTML('afterbegin', `<div class="note"><b>V6</b>：實景地圖改真實尺寸（船與船席隨放大變大、可直接拖船移泊）；示意圖改成與實景同方向；新增「停航合併（選頭尾）」。</div>`); };
+
+/* ---------- V7：新／舊碼頭 ---------- */
+let MAPAREA = 'new';
+function fitArea(m, area) {
+  const ids = area === 'old' ? OLDPIER : area === 'all' ? [...NEWPIER, ...OLDPIER, 'NB', 'CG'] : [...NEWPIER, 'NB'];
+  const pts = ids.map(id => berth(id)).filter(Boolean).flatMap(b => { const [la, ln, rot] = bpos(b); const [BL] = bSize(b); return rot === -90 ? [offLL(la, ln, 0, BL / 2 + 8), offLL(la, ln, 0, -BL / 2 - 18)] : [offLL(la, ln, BL / 2 + 8, 0), offLL(la, ln, -BL / 2 - 8, 0)]; });
+  if (pts.length) m.fitBounds(L.latLngBounds(pts), { paddingTopLeft: [30, 40], paddingBottomRight: [30, 90], maxZoom: 19 });
+}
+function migrateV7() {
+  if (!S || S.v7) return;
+  [['DXJ', '大小金浮動', '一般', 2], ['O2L', '2左', '小三通客輪', 1], ['O2R', '2右', '小三通客輪', 1], ['O3L', '3左', '小三通客輪', 1], ['O3R', '3右', '小三通客輪', 1]].forEach(([id, name, type, cap]) => {
+    if (!S.berths.find(b => b.id === id)) S.berths.push({ id, name, type, cap, port: '水頭', note: '舊旅運碼頭（備用）', w: 40, h: 120, water: false, oil: false });
+  });
+  NEWPIER.forEach(id => { const b = berth(id); if (b) b.note = '新旅運中心浮動碼頭（主要）'; });
+  ['S4', 'SB'].forEach(id => { const b = berth(id); if (b) b.note = '舊碼頭西側 L 型碼頭'; });
+  if (S.berthPos) Object.keys(BPOS).forEach(k => delete S.berthPos[k]);   // 舊版判讀位置作廢，改用 V7 量測座標
+  S.v7 = true;
+}
+const _render7 = render;
+render = function () { if (S && !S.v7) { migrateV7(); setTimeout(save, 0); } _render7(); };
+const _about7 = showAbout;
+showAbout = function () { _about7(); $('#modal .mbody')?.insertAdjacentHTML('afterbegin', `<div class="note"><b>V7</b>：S1～S3 改到北堤東側「新旅運中心」三座浮動碼頭（依空拍圖量測）；舊旅運碼頭（大小金浮動、2號、3號、S4、南堤）列為備用船席；手機開啟時選單不再被地圖蓋住。</div>`); };
 
 /* ---------- 啟動 ---------- */
 startApp();
