@@ -148,7 +148,7 @@ td.num,th.num{text-align:right}
 <header>
   <button class="hbtn" id="menuBtn" onclick="document.querySelector('nav').classList.toggle('open')">☰</button>
   <div class="logo">⚓</div>
-  <h1>金門港 新港埠資訊系統</h1><span class="demo">DEMO V7</span>
+  <h1>金門港 新港埠資訊系統</h1><span class="demo">DEMO V8</span>
   <div class="sp"></div>
   <span id="cloudLbl" class="small" title="資料儲存位置"></span><span id="dateLbl" class="small"></span>
   <select id="userSel" title="切換登入身分（展示權限控管）"></select>
@@ -167,7 +167,7 @@ td.num,th.num{text-align:right}
    - 資料存在瀏覽器（localStorage），「重設資料」可回到初始狀態
    - 所有資料皆為展示用模擬資料
    ============================================================ */
-const KEY = 'kmport-demo-v7';
+const KEY = 'kmport-demo-v8';
 const $ = s => document.querySelector(s);
 const pad = n => String(n).padStart(2, '0');
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -521,7 +521,7 @@ function aerialSVG() {
     const shipsHere = st.occ.map((v, i) => shipIcon(b, v, i, vert)).join('');
     const lx = vert ? b.x + b.w / 2 : b.x + b.w / 2, ly = vert ? b.y - 6 : b.y - 5;
     return `<g class="berth ${MAPSEL === b.id ? 'sel' : ''}" data-bid="${b.id}" onclick="selBerth('${b.id}')"><rect class="b" x="${b.x}" y="${b.y}" width="${b.w}" height="${b.h}" rx="4" fill="${col}" fill-opacity=".35" stroke="${col}" stroke-width="2"/>${shipsHere}
-      <text x="${lx}" y="${ly}" text-anchor="middle" font-size="12" font-weight="700" fill="#fff" stroke="#0b2a4a" stroke-width="3" paint-order="stroke">${esc(b.name)}${st.sch.length ? ' ⏱' + st.sch.length : ''}</text></g>`;
+      <text x="${lx}" y="${ly}" text-anchor="middle" font-size="15" font-weight="700" fill="#fff" stroke="#0b2a4a" stroke-width="3" paint-order="stroke">${esc(b.name)}${st.sch.length ? ' ⏱' + st.sch.length : ''}</text></g>`;
   }).join('');
   return `<svg viewBox="0 0 1000 640" xmlns="http://www.w3.org/2000/svg">
   <defs><linearGradient id="sea" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#2f7fa8"/><stop offset="1" stop-color="#174f78"/></linearGradient>
@@ -2207,8 +2207,9 @@ const hullPts = (L, W) => [[-L / 2, -W / 2], [L / 2 - W * .9, -W / 2], [L / 2, 0
 const bSize = b => b.cap > 1 ? [72, 26] : b.type === '小三通客輪' ? [62, 16] : [72, 18];
 const sSize = s => s.type === '小三通客船' ? [46, 11] : s.type === '貨船' ? [62, 13] : s.type === '漁船' ? [22, 7] : s.type === '遊艇' ? [16, 6] : [13, 5];
 const MAPVIEW_KEY = 'kmport-mapview-v7';
-const getMV = () => { try { return JSON.parse(localStorage.getItem(MAPVIEW_KEY)); } catch (e) { return null; } };
-const setMV = v => { try { localStorage.setItem(MAPVIEW_KEY, JSON.stringify(v)); } catch (e) {} };
+const mvKey = () => MAPVIEW_KEY + (window.innerWidth < 600 ? '-m' : '');
+const getMV = () => { try { return JSON.parse(localStorage.getItem(mvKey())); } catch (e) { return null; } };
+const setMV = v => { try { localStorage.setItem(mvKey(), JSON.stringify(v)); } catch (e) {} };
 const getBase = () => { try { return localStorage.getItem('kmport-mapbase') || 'PHOTO2'; } catch (e) { return 'PHOTO2'; } };
 
 buildMap = function (ro) {
@@ -2323,7 +2324,7 @@ aerialSVG = function () {
     const ly = vert ? bb.y + bb.h + 14 : bb.y - 5;
     const old = OLDPIER.includes(b.id);
     return `<g class="berth ${MAPSEL === b.id ? 'sel' : ''}" data-bid="${b.id}" onclick="selBerth('${b.id}')"><rect class="b" x="${bb.x}" y="${bb.y}" width="${bb.w}" height="${bb.h}" rx="4" fill="${col}" fill-opacity="${old ? .22 : .35}" stroke="${col}" stroke-width="2" ${old ? 'stroke-dasharray="5 3"' : ''}/>${shipsHere}
-      <text x="${bb.x + bb.w / 2}" y="${ly}" text-anchor="middle" font-size="12" font-weight="700" fill="#fff" stroke="#0b2a4a" stroke-width="3" paint-order="stroke">${esc(b.name)}${st.sch.length ? ' ⏱' + st.sch.length : ''}</text></g>`;
+      <text x="${bb.x + bb.w / 2}" y="${ly}" text-anchor="middle" font-size="15" font-weight="700" fill="#fff" stroke="#0b2a4a" stroke-width="3" paint-order="stroke">${esc(b.name)}${st.sch.length ? ' ⏱' + st.sch.length : ''}</text></g>`;
   }).join('');
   return `<svg viewBox="0 0 1000 640" xmlns="http://www.w3.org/2000/svg">
   <defs><linearGradient id="sea7" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#174f78"/><stop offset="1" stop-color="#2f7fa8"/></linearGradient>
@@ -2485,8 +2486,327 @@ render = function () { if (S && !S.v7) { migrateV7(); setTimeout(save, 0); } _re
 const _about7 = showAbout;
 showAbout = function () { _about7(); $('#modal .mbody')?.insertAdjacentHTML('afterbegin', `<div class="note"><b>V7</b>：S1～S3 改到北堤東側「新旅運中心」三座浮動碼頭（依空拍圖量測）；舊旅運碼頭（大小金浮動、2號、3號、S4、南堤）列為備用船席；手機開啟時選單不再被地圖蓋住。</div>`); };
 
+/* V8：startApp() 移到最後一段 */
+</script>
+<style>
+/* ===== V8：大按鈕、乾淨畫面 ===== */
+.btn.lg{font-size:16px;padding:10px 16px;border-radius:10px;min-height:44px}
+.seg.lg a{padding:10px 18px;font-size:16px}
+.tag.lg{font-size:14px;padding:3px 10px}
+.dock8{display:grid;grid-template-columns:1fr 380px;gap:14px}
+.dock8>*{min-width:0}
+.dock8 .lmap{height:calc(100vh - 270px);min-height:520px}
+.pcard{display:flex;gap:10px;align-items:center;background:#fff;border:2px solid var(--line);border-left:8px solid var(--c);border-radius:12px;padding:12px 14px;margin-bottom:10px;cursor:pointer;user-select:none}
+.pcard:hover{border-color:#9dbbe9;background:#f8fbff}
+.pcard.on{outline:3px solid #f5b301;background:#fffbe8}
+.pcard .nm{font-size:18px;font-weight:800}
+.pcard .meta{font-size:14px;color:var(--muted);margin-top:2px}
+.pcard .go{margin-left:auto;font-size:26px;color:var(--navy2)}
+.ptabs{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px}
+.ptabs a{text-align:center;padding:12px;border-radius:10px;background:#eef2f7;font-weight:700;font-size:16px;cursor:pointer}
+.ptabs a.on{background:var(--navy2);color:#fff}
+.sheet h4{font-size:16px;color:var(--navy2);margin:16px 0 8px}
+.srow{display:flex;gap:10px;align-items:center;flex-wrap:wrap;background:#f7f9fc;border:1px solid var(--line);border-radius:12px;padding:12px;margin-bottom:8px}
+.srow .nm{font-size:18px;font-weight:800}
+.srow .meta{font-size:14px;color:var(--muted)}
+.srow .acts{display:flex;gap:8px;flex-wrap:wrap;margin-left:auto}
+.bgrid8{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;margin-bottom:6px}
+.bbtn{border:3px solid var(--c);border-radius:12px;padding:12px;background:#fff;cursor:pointer;text-align:left;font:inherit}
+.bbtn b{font-size:19px;display:block}
+.bbtn span{font-size:13px;color:var(--muted)}
+.bbtn:hover{background:#f3f8ff}
+.bbtn:disabled{opacity:.45;cursor:default}
+.choice{display:grid;gap:10px}
+.choice button{font:inherit;font-size:15px;padding:14px 16px;border-radius:12px;border:2px solid var(--line);background:#fff;text-align:left;cursor:pointer;color:var(--muted)}
+.choice button b{display:block;font-size:18px;color:var(--text);margin-bottom:2px}
+.choice button:hover{border-color:var(--navy2);background:#f3f8ff}
+.lmap .lb{font-size:15px;padding:3px 12px;border-width:3px}
+.lmap .shiptip{font-size:14px;padding:1px 9px}
+.acards{display:grid;grid-template-columns:repeat(auto-fill,minmax(330px,1fr));gap:12px}
+.acard{background:#fff;border:1px solid var(--line);border-radius:14px;padding:14px 16px;display:flex;flex-direction:column;gap:6px}
+.acard .top{display:flex;gap:6px;align-items:center}
+.acard .nm{font-size:20px;font-weight:800}
+.acard .tm{font-size:15px}
+.acard .acts{display:flex;gap:8px;flex-wrap:wrap;margin-top:6px}
+.form.big input,.form.big select,.form.big textarea{font-size:16px;padding:10px 12px}
+.form.big label{font-size:14px}
+details.more{margin-top:14px;border:1px dashed #b9c6d8;border-radius:10px;padding:6px 12px;background:#fafcff}
+details.more summary{cursor:pointer;font-weight:700;color:var(--navy2);font-size:15px;padding:8px 0}
+.lmap.z-low .shiptip{display:none}
+.lmap.z-low .lb{font-size:12px;padding:1px 7px;border-width:2px}
+@media (max-width:1100px){.dock8{grid-template-columns:1fr}.dock8 .lmap{height:60vh;min-height:420px}}
+@media (max-width:820px){.acards{grid-template-columns:1fr}.btn.lg{font-size:15px;padding:9px 12px}.seg.lg a{padding:9px 12px;font-size:15px}}
+</style>
+<script>
+/* ============================================================
+   V8（客戶回饋）：船席指派、進出港申請 → 大按鈕、畫面乾淨、詳細資料點開才看
+   ============================================================ */
+try { localStorage.setItem('kmport-mapbase', 'PHOTO2'); } catch (e) {}
+NAV.forEach(g => g[1].forEach(it => { if (it[0] === 'map') it[2] = '船席指派'; }));
+const STC = { free: '#2e9d5b', sch: '#e0a100', part: '#e07b00', full: '#d64545' };
+const STN = { free: '空泊位', sch: '已排定', part: '有船靠泊', full: '有船靠泊' };
+const isSat = () => (S.mapMode || 'real') === 'real';
+const shipColor = s => SHIPC[s.type] === '#ffffff' ? '#b9c2cc' : SHIPC[s.type] || '#ccc';
+const waitList = () => S.voyages.filter(v => v.status === '通過' && v.move === '預報' && v.inTime < dayStart(2) && v.inTime > dayStart(-1)).sort((a, b) => (a.berthId ? 1 : 0) - (b.berthId ? 1 : 0) || a.inTime - b.inTime);
+const portList = () => S.voyages.filter(v => v.status === '通過' && v.move === '靠泊').sort((a, b) => a.outTime - b.outTime);
+const areaOf = id => NEWPIER.includes(id) || id === 'NB' ? '新碼頭' : OLDPIER.includes(id) ? '舊碼頭（備用）' : '其他';
+let P8 = { tab: 'wait' };
+
+/* ---------- 船席指派頁 ---------- */
+VIEWS.map = () => {
+  if (MAPLV !== 'harbor') return _mapView();
+  const sat = isSat(); const w = waitList(), p = portList();
+  const list = P8.tab === 'wait' ? w : p;
+  const card = v => { const s = ship(v.shipId); const late = v.move === '靠泊' && v.outTime < Date.now();
+    return `<div class="pcard ${PICK === v.id ? 'on' : ''}" data-nm="${esc(s.name)}" style="--c:${shipColor(s)}" draggable="true" ondragstart="dragV(event,'${v.id}')" onclick="shipSheet('${v.id}')">
+    <div style="min-width:0"><div class="nm">${esc(s.name)}</div><div class="meta">${v.move === '靠泊' ? `⚓ ${esc(berth(v.berthId)?.name || '')}｜離港 ${fmtS(v.outTime)}${late ? ' <b style="color:var(--red)">逾時</b>' : ''}` : `🕓 ${fmtS(v.inTime)} 進港｜${v.berthId ? '📍 ' + esc(berth(v.berthId)?.name || '') : '<b style="color:#c07a00">尚未指派</b>'}`}</div></div><div class="go">›</div></div>`; };
+  return `<div class="title"><h2>船席指派</h2><span class="sub">點船舶清單裡的船 → 選船席；也可以把船直接拖到圖上的船席</span><div class="sp"></div>
+    <div class="seg lg"><a class="${sat ? '' : 'on'}" onclick="S.mapMode='schema';save();render()">🗺️ 示意圖</a><a class="${sat ? 'on' : ''}" onclick="S.mapMode='real';save();render()">🛰️ 衛星圖</a></div></div>
+  ${PICK ? `<div class="pickbar" style="font-size:16px"><span>👆 已選 <b>${esc(ship(voy(PICK).shipId).name)}</b>，請點圖上要停的船席</span><button class="btn lg" onclick="PICK=null;render()">取消</button></div>` : ''}
+  <div class="dock8"><div class="mapbox ${PICK ? 'picking' : ''}" id="dropZone">
+    ${sat ? `<div class="bar" style="margin:4px 4px 8px"><div class="seg lg">${[['new', '新碼頭'], ['old', '舊碼頭'], ['all', '全港']].map(([k, n]) => `<a class="${MAPAREA === k ? 'on' : ''}" onclick="MAPAREA='${k}';setMV(null);render()">${n}</a>`).join('')}</div></div><div id="lmap" class="lmap"></div>` : aerialSVG()}
+    <div class="legend" style="font-size:14px"><span><i style="background:#2e9d5b"></i>空</span><span><i style="background:#e0a100"></i>已排定</span><span><i style="background:#d64545"></i>有船靠泊</span><span>虛線框＝舊碼頭（備用）</span></div></div>
+  <div class="card"><div class="ptabs"><a class="${P8.tab === 'wait' ? 'on' : ''}" onclick="P8.tab='wait';render()">🕓 待進港 ${w.length}</a><a class="${P8.tab === 'port' ? 'on' : ''}" onclick="P8.tab='port';render()">⚓ 在港 ${p.length}</a></div>
+    <input class="btn" style="width:100%;font-size:16px;padding:10px;margin-bottom:10px;cursor:text" placeholder="🔎 搜尋船名" oninput="const q=this.value.trim();document.querySelectorAll('.pcard').forEach(c=>c.style.display=!q||c.dataset.nm.includes(q)?'':'none')">
+    <div style="max-height:calc(100vh - 340px);min-height:200px;overflow:auto">${list.map(card).join('') || '<div class="empty">沒有船舶</div>'}</div></div></div>`;
+};
+// 衛星圖：只留空拍底圖，不顯示圖層選單；字與框都放大
+buildMap = function (ro) {
+  const el = $('#lmap'); if (!el) return;
+  if (!window.L) { el.outerHTML = `<div class="note">⚠️ 無法載入衛星圖（可能未連網），請改用「示意圖」。</div>`; return; }
+  dropMap();
+  const m = LMAP = L.map(el, { zoomControl: true, maxZoom: 21, zoomSnap: 0.25 });
+  const mv = getMV(); if (mv) m.setView(mv.c, mv.z); else fitArea(m, MAPAREA || 'new');
+  L.tileLayer(BASES.PHOTO2.url, { maxZoom: 21, maxNativeZoom: 19, attribution: BASES.PHOTO2.attr }).addTo(m);
+  m.on('moveend', () => { if (LMAP !== m) return; const c = m.getCenter(); setMV({ c: [c.lat, c.lng], z: m.getZoom() }); });
+  const staff = !ro && isStaff();
+  S.berths.filter(b => b.port === '水頭').forEach(b => {
+    const [la, ln, rot] = bpos(b); const st = berthState(b); const [BL, BW] = bSize(b); const col = STC[st.state]; const old = OLDPIER.includes(b.id);
+    const open = () => ro ? L.popup().setLatLng([la, ln]).setContent(berthPopup(b)).openOn(m) : selBerth(b.id);
+    L.polygon(polyAt([la, ln], rot, rectPts(BL, BW)), { color: col, weight: 3, fillColor: col, fillOpacity: .22, dashArray: old ? '8 5' : null }).addTo(m).on('click', open);
+    const lp = rot === -90 ? offLL(la, ln, 0, -BL / 2 - 6) : offLL(la, ln, -BL / 2 - 8, 0);
+    L.marker(lp, { icon: L.divIcon({ className: '', html: `<div class="lb" data-bid="${b.id}" style="--c:${col}">${esc(b.name)}</div>`, iconSize: [0, 0] }) }).addTo(m).on('click', open);
+    const shipsHere = [...st.occ.map(v => [v, false]), ...(!st.occ.length || b.cap > 1 ? st.sch.map(v => [v, true]) : [])];
+    shipsHere.forEach(([v, sch], i) => {
+      const s = ship(v.shipId); const [SL, SW] = sSize(s); const n = shipsHere.length;
+      const off = n > 1 ? (i - (n - 1) / 2) * Math.min(BL / n, SL + 3) : 0;
+      const c = rot === -90 ? offLL(la, ln, 0, off) : offLL(la, ln, off, 0);
+      const poly = L.polygon(polyAt(c, rot, hullPts(SL, SW)), { color: sch ? '#ffffff' : '#0b2a4a', weight: sch ? 2 : 1.2, dashArray: sch ? '4 3' : null, fillColor: SHIPC[s.type] || '#ccc', fillOpacity: sch ? .45 : .95, className: staff ? 'shp' : '' }).addTo(m);
+      const dir = /L$/.test(b.id) ? 'left' : /R$/.test(b.id) ? 'right' : 'top';
+      const tip = L.tooltip({ permanent: true, direction: dir, className: 'shiptip' + (sch ? ' p' : ''), offset: dir === 'left' ? [-6, 0] : dir === 'right' ? [6, 0] : [0, -6], interactive: true })
+        .setLatLng(c).setContent(`${esc(s.name)}${sch ? ` <small>${fmtT(v.inTime)}</small>` : ''}${!sch && v.outTime < Date.now() ? '<span class="bad">!</span>' : ''}`);
+      m.addLayer(tip);
+      const openShip = () => { if (Date.now() - (window._drag8 || 0) < 500) return; ro ? L.popup().setLatLng(c).setContent(shipPopup(v, true)).openOn(m) : shipSheet(v.id); };
+      poly.on('click', openShip); tip.on('click', openShip);
+      if (staff) dragShip8(m, poly, v, b);
+    });
+  });
+  const zl = () => el.classList.toggle('z-low', m.getZoom() < 17.75);
+  m.on('zoomend', zl); zl();
+  setTimeout(() => { if (LMAP === m) { m.invalidateSize(); if (!getMV()) fitArea(m, MAPAREA || 'new'); zl(); } }, 60);
+};
+// 手機（窄畫面）：「新碼頭」只框三座浮動碼頭，避免標籤擠在一起
+fitArea = function (m, area) {
+  const narrow = m.getSize().x < 600;
+  const ids = area === 'old' ? OLDPIER : area === 'all' ? [...NEWPIER, ...OLDPIER, 'NB', 'CG'] : narrow ? NEWPIER : [...NEWPIER, 'NB'];
+  const pts = ids.map(id => berth(id)).filter(Boolean).flatMap(b => { const [la, ln, rot] = bpos(b); const [BL] = bSize(b); return rot === -90 ? [offLL(la, ln, 0, BL / 2 + 8), offLL(la, ln, 0, -BL / 2 - 18)] : [offLL(la, ln, BL / 2 + 8, 0), offLL(la, ln, -BL / 2 - 8, 0)]; });
+  if (pts.length) m.fitBounds(L.latLngBounds(pts), narrow ? { padding: [8, 24], maxZoom: 19 } : { paddingTopLeft: [30, 40], paddingBottomRight: [30, 60], maxZoom: 19 });
+};
+function dragShip8(m, poly, v, b) {
+  poly.on('mousedown', e => {
+    if (e.originalEvent.button !== 0) return;
+    L.DomEvent.stop(e.originalEvent); m.dragging.disable();
+    const start = e.containerPoint; let moved = false;
+    const ghost = L.marker(e.latlng, { interactive: false, icon: L.divIcon({ className: '', html: `<div class="dragghost" style="font-size:15px">🚢 ${esc(ship(v.shipId).name)}</div>`, iconSize: [0, 0] }) });
+    const mm = ev => { if (!moved && ev.containerPoint.distanceTo(start) > 6) { moved = true; ghost.addTo(m); } if (moved) ghost.setLatLng(ev.latlng); };
+    m.on('mousemove', mm);
+    document.addEventListener('mouseup', ev => {
+      m.off('mousemove', mm); m.dragging.enable();
+      if (!moved) return;
+      window._drag8 = Date.now(); const ll = m.mouseEventToLatLng(ev); ghost.remove();
+      const nb = nearestBerth(m, ll);
+      if (nb && nb.id !== b.id) dockShip(v.id, nb.id); else toast(nb ? '仍在原船席' : '請拖到船席附近');
+    }, { once: true });
+  });
+}
+
+/* ---------- 點船：大按鈕視窗 ---------- */
+function shipSheet(vid) {
+  const v = voy(vid); if (!v) return; const s = ship(v.shipId); const b = berth(v.berthId); const staff = isStaff() && canEdit();
+  const lv = appsOf(v.id, '出港').find(a => a.status === '通過');
+  const later = mgCands(v.shipId).filter(x => x.inTime > v.inTime).length;
+  const acts = [];
+  if (staff && v.move === '預報') {
+    acts.push(`<button class="btn p lg" onclick="berthPicker('${vid}')">📍 ${b ? '換船席' : '指派船席'}</button>`);
+    if (b) acts.push(`<button class="btn g lg" onclick="closeModal();arrive('${vid}')">⚓ 已靠泊</button>`, `<button class="btn lg" onclick="closeModal();assign('${vid}','')">✖ 取消指派</button>`);
+    acts.push(`<button class="btn lg" onclick="closeModal();PICK='${vid}';render()">👆 在圖上點船席</button>`);
+  }
+  if (staff && v.move === '靠泊') {
+    acts.push(`<button class="btn r lg" onclick="closeModal();depart('${vid}')">🚢 出港</button>`, `<button class="btn p lg" onclick="berthPicker('${vid}')">📍 移泊</button>`, `<button class="btn lg" onclick="closeModal();openShift('${vid}')">⏱ 延後出港</button>`);
+    if (later) acts.push(`<button class="btn lg" onclick="closeModal();mergeTool('${vid}')">🔗 停航合併</button>`);
+  }
+  const apps = appsOf(v.id);
+  modal(`🚢 ${esc(s.name)}`, `<div class="sheet">
+    <div class="flex" style="gap:8px;margin-bottom:10px"><span class="tag lg ${v.move === '靠泊' ? 't-ok' : 't-info'}">${v.move === '靠泊' ? '在港靠泊中' : v.move === '預報' ? '待進港' : esc(v.move)}</span><span class="tag lg t-gray">${esc(s.type)}</span>${b ? `<span class="tag lg t-info">📍 ${esc(b.name)}（${areaOf(b.id)}）</span>` : '<span class="tag lg t-wait">尚未指派船席</span>'}</div>
+    <div style="font-size:17px;line-height:1.9">🕓 進港 <b>${fmtS(v.actualIn || v.inTime)}</b>　→　出港 <b>${fmtS(v.outTime)}</b><br>🧭 ${esc(v.prevPort)} → ${esc(v.nextPort)}${v.move === '靠泊' ? `<br>${lv ? (lv.checked ? '✅ 可以出港（已核准、移民署已檢查）' : '⚠️ 出港已核准，待移民署檢查') : '⚠️ 出港申請尚未核准'}` : ''}</div>
+    ${acts.length ? `<div class="flex" style="gap:10px;margin-top:16px">${acts.join('')}</div>` : ''}
+    <details class="more"><summary>詳細資料</summary><div class="kv" style="margin-top:8px;font-size:14px"><b>船公司</b><span>${esc(s.company)}</span><b>航次</b><span>${v.code}（累計 ${v.cum}）</span><b>總噸位</b><span>${s.gt}</span><b>國籍</b><span>${esc(s.nation)}</span>
+    <b>申請單</b><span>${apps.map(a => `<a style="color:var(--navy2);cursor:pointer;text-decoration:underline" onclick="showApp('${a.id}')">${a.kind} #${a.no}</a> ${tag(a.status)}`).join('　') || '—'}</span>${v.remark ? `<b>備註</b><span>${esc(v.remark)}</span>` : ''}</div></details></div>`,
+    '<button class="btn lg" onclick="closeModal()">關閉</button>', true);
+}
+/* ---------- 點船席：大按鈕視窗 ---------- */
+function berthSheet(bid) {
+  const b = berth(bid); if (!b) return; const st = berthState(b); const staff = isStaff() && canEdit();
+  const next = S.voyages.filter(v => v.status === '通過' && v.move === '預報' && v.berthId === bid && v.inTime < dayStart(2)).sort((x, y) => x.inTime - y.inTime);
+  const row = (v, occ) => { const s = ship(v.shipId); return `<div class="srow" style="border-left:6px solid ${shipColor(s)}"><div><div class="nm">${esc(s.name)}</div><div class="meta">${occ ? `靠泊 ${fmtT(v.actualIn)}｜預定離港 ${fmtS(v.outTime)}` : `預定 ${fmtS(v.inTime)} 進港`}</div></div>
+    ${staff ? `<div class="acts">${occ ? `<button class="btn r lg" onclick="closeModal();depart('${v.id}')">🚢 出港</button><button class="btn lg" onclick="berthPicker('${v.id}')">📍 移泊</button>`
+      : `<button class="btn g lg" onclick="closeModal();arrive('${v.id}')">⚓ 已靠泊</button><button class="btn lg" onclick="shipPicker('${bid}','${v.id}')">🔄 換別艘船</button><button class="btn lg" onclick="berthPicker('${v.id}')">📍 換船席</button><button class="btn lg" onclick="closeModal();assign('${v.id}','')">✖ 取消</button>`}</div>` : ''}</div>`; };
+  modal(`⚓ 船席 ${esc(b.name)}`, `<div class="sheet"><div class="flex" style="gap:8px"><span class="tag lg" style="background:${STC[st.state]};color:#fff">${STN[st.state]}</span><span class="tag lg t-gray">${areaOf(bid)}</span></div>
+    <h4>目前靠泊</h4>${st.occ.map(v => row(v, true)).join('') || '<div class="muted" style="font-size:15px">沒有船</div>'}
+    <h4>排定要來的船（今明兩天）</h4>${next.map(v => row(v, false)).join('') || '<div class="muted" style="font-size:15px">沒有排定</div>'}
+    ${staff ? `<button class="btn p lg" style="width:100%;margin-top:16px;font-size:17px" onclick="shipPicker('${bid}')">➕ 指派船舶到 ${esc(b.name)}</button>` : ''}</div>`,
+    '<button class="btn lg" onclick="closeModal()">關閉</button>', true);
+}
+selBerth = function (id) { if (PICK) { dockShip(PICK, id); return; } berthSheet(id); };
+/* ---------- 選船席（大按鈕） ---------- */
+function berthPicker(vid) {
+  const v = voy(vid); const s = ship(v.shipId);
+  const others = S.berths.filter(b => b.port === '水頭' && ![...NEWPIER, 'NB', ...OLDPIER].includes(b.id)).map(b => b.id);
+  const groups = [['新碼頭（主要）', [...NEWPIER, 'NB']], ['舊碼頭（備用）', OLDPIER], ['其他', others]];
+  const btn = id => { const b = berth(id); if (!b) return ''; const st = berthState(b); const here = v.berthId === id;
+    const who = [...st.occ, ...S.voyages.filter(x => x.status === '通過' && x.move === '預報' && x.berthId === id && x.inTime < dayStart(2))].filter(x => x.id !== vid).map(x => ship(x.shipId).name);
+    return `<button class="bbtn" style="--c:${STC[st.state]}" ${here ? 'disabled' : `onclick="closeModal();dockShip('${vid}','${id}')"`}><b>${esc(b.name)}</b><span>${here ? '← 目前位置' : who.length ? '👥 ' + esc([...new Set(who)].join('、')) : '空的'}</span></button>`; };
+  modal(`📍 ${esc(s.name)} 要停哪個船席？`, groups.map(([n, ids]) => ids.length ? `<h4 style="margin:8px 0;color:var(--navy2);font-size:16px">${n}</h4><div class="bgrid8">${ids.map(btn).join('')}</div>` : '').join(''),
+    '<button class="btn lg" onclick="closeModal()">取消</button>', true);
+}
+/* ---------- 選船舶（大按鈕） ---------- */
+function shipPicker(bid, replaceVid) {
+  const b = berth(bid);
+  const cands = [...waitList(), ...portList()].filter(v => v.berthId !== bid);
+  const btn = v => { const s = ship(v.shipId); return `<button class="bbtn" style="--c:${shipColor(s)}" onclick="closeModal();${replaceVid ? `conflictSheet('${v.id}','${bid}',[voy('${replaceVid}')])` : `dockShip('${v.id}','${bid}')`}"><b>${esc(s.name)}</b><span>${v.move === '靠泊' ? '在港｜' + esc(berth(v.berthId)?.name || '') : fmtS(v.inTime) + ' 進｜' + (v.berthId ? esc(berth(v.berthId)?.name || '') : '未指派')}</span></button>`; };
+  modal(replaceVid ? `🔄 ${esc(b.name)} 改給哪艘船？（原本：${esc(ship(voy(replaceVid).shipId).name)}）` : `➕ 哪艘船要停 ${esc(b.name)}？`,
+    `<div class="bgrid8">${cands.map(btn).join('') || '<div class="empty">沒有可指派的船</div>'}</div>`, '<button class="btn lg" onclick="closeModal()">取消</button>', true);
+}
+/* ---------- 指派／衝突處理（互換、取代、分時段） ---------- */
+dockShip = function (vid, bid) {
+  const v = voy(vid), b = berth(bid); PICK = null;
+  if (!v || !b) { render(); return; }
+  if (!isStaff()) { toast('船席指派需港務處人員'); render(); return; }
+  if (v.berthId === bid) { render(); return; }
+  const s0 = v.move === '靠泊' ? Date.now() : v.inTime, s1 = Math.max(v.outTime, s0 + 3600e3);
+  const clash = S.voyages.filter(x => x.id !== vid && x.berthId === bid && x.status === '通過' && !x.actualOut && (x.actualIn || x.inTime) < s1 && (x.move === '靠泊' ? Math.max(x.outTime, Date.now() + 1) : x.outTime) > s0);
+  if (clash.length >= b.cap) { conflictSheet(vid, bid, clash); return; }
+  moveTo(vid, bid);
+};
+function moveTo(vid, bid) {
+  const v = voy(vid); const from = berth(v.berthId)?.name || '未指派'; v.berthId = bid;
+  log(v.move === '靠泊' ? '移泊' : '指派泊位', `${ship(v.shipId).name} ${v.code}`, `${from} → ${berth(bid).name}`); save(); render();
+  toast(`✔ ${esc(ship(v.shipId).name)}：${esc(from)} → ${esc(berth(bid).name)}（已同步 LED 與售票登船資訊）`, 'ok');
+}
+function conflictSheet(vid, bid, clash) {
+  const v = voy(vid), b = berth(bid), s = ship(v.shipId); const a = clash[0], as = ship(a.shipId);
+  if (a.id === vid) { moveTo(vid, bid); return; }
+  const from = v.berthId ? berth(v.berthId) : null;
+  const canSwap = a.move !== '靠泊' || v.move === '靠泊';
+  const opts = [];
+  if (canSwap) opts.push(`<button onclick="closeModal();swap8('${vid}','${a.id}','${bid}')"><b>🔁 ${from ? '互換位置' : '換掉（原船改回待指派）'}</b>${esc(s.name)} → ${esc(b.name)}　｜　${esc(as.name)} → ${from ? esc(from.name) : '待指派'}</button>`);
+  if (canSwap && from && a.move !== '靠泊') opts.push(`<button onclick="closeModal();swap8('${vid}','${a.id}','${bid}',true)"><b>⤵ 取代</b>${esc(s.name)} 停 ${esc(b.name)}　｜　${esc(as.name)} 改回待指派（之後再排）</button>`);
+  opts.push(`<button onclick="closeModal();moveTo('${vid}','${bid}')"><b>➕ ${a.move === '靠泊' ? `排在 ${esc(as.name)} 出港之後` : '分時段一起排'}</b>兩艘都排在 ${esc(b.name)}，請確認時間不衝突</button>`);
+  modal(`⚠️ ${esc(b.name)} 已經有船了`, `<div style="font-size:17px;margin-bottom:14px">${clash.map(x => `<b>${esc(ship(x.shipId).name)}</b>（${x.move === '靠泊' ? '正在靠泊' : fmtS(x.inTime) + ' 進港'}）`).join('、')} 已排在 <b>${esc(b.name)}</b>。<br>要讓 <b>${esc(s.name)}</b> 怎麼停？</div><div class="choice">${opts.join('')}</div>`,
+    '<button class="btn lg" onclick="closeModal();render()">取消</button>');
+}
+function swap8(vid, aid, bid, replace) {
+  const v = voy(vid), a = voy(aid); const from = v.berthId;
+  v.berthId = bid; a.berthId = replace ? '' : (from || '');
+  log(replace ? '船席取代' : '船席互換', `${ship(v.shipId).name} ↔ ${ship(a.shipId).name}`, `${ship(v.shipId).name} → ${berth(bid).name}；${ship(a.shipId).name} → ${a.berthId ? berth(a.berthId).name : '待指派'}`);
+  save(); render(); toast(`✔ ${esc(ship(v.shipId).name)} → ${esc(berth(bid).name)}；${esc(ship(a.shipId).name)} → ${a.berthId ? esc(berth(a.berthId).name) : '待指派'}`, 'ok');
+}
+</script>
+<script>
+/* ---------- 進出港申請：卡片＋大按鈕 ---------- */
+let A8 = { st: '待審', kind: '', q: '' };
+const stOK = (a, st) => st === '全部' ? true : st === '已核准' ? a.status === '通過' : st === '退回/註銷' ? ['退回', '註銷'].includes(a.status) : a.status === '待審';
+VIEWS.apply = () => {
+  const staff = isStaff(), ro = !canEdit(); const ids = new Set(visibleShips().map(s => s.id));
+  const mine = S.apps.filter(a => ids.has(a.shipId));
+  const kindOK = a => !A8.kind || (A8.kind === '預報' ? a.kind.includes('預報') : a.kind === A8.kind);
+  const as = mine.filter(a => stOK(a, A8.st) && kindOK(a) && (!A8.q || (ship(a.shipId).name + a.no + (voy(a.voyageId)?.code || '')).includes(A8.q)))
+    .sort((x, y) => A8.st === '待審' ? appTime(x) - appTime(y) : appTime(y) - appTime(x));
+  window._a8 = as.filter(a => a.status === '待審').map(a => a.id);
+  const card = a => { const s = ship(a.shipId), v = voy(a.voyageId); const own = !staff && a.status === '待審';
+    const tm = a.kind === '移泊' ? `🕓 <b>${fmtS(a.f.time)}</b>　${esc(a.f.moveKind)} → <b>${esc(berth(a.f.berthTo)?.name || '—')}</b>`
+      : a.kind.startsWith('出港') ? `🕓 出港 <b>${fmtS(a.f.outTime)}</b>　往 ${esc(a.f.nextPort)}` : `🕓 進港 <b>${fmtS(a.f.inTime)}</b>　→　出港 ${fmtS(a.f.outTime)}`;
+    const kc = { '進港': 't-info', '出港': 't-ok', '移泊': 't-wait' }[a.kind] || 't-gray';
+    const bn = a.kind !== '移泊' && berth(a.f.berthId || v?.berthId)?.name;
+    return `<div class="acard" style="border-left:6px solid ${shipColor(s)}"><div class="top"><span class="tag lg ${kc}">${a.kind}</span>${tag(a.status)}<span class="muted small" style="margin-left:auto">#${a.no}</span></div>
+      <div class="nm">${esc(s.name)} <span class="muted" style="font-size:14px;font-weight:400">${esc(s.type)}</span></div>
+      <div class="tm">${tm}</div><div class="muted" style="font-size:14px">${esc(s.company)}${bn ? '｜📍 ' + esc(bn) : ''}${a.reason ? `｜<span style="color:var(--red)">${esc(a.reason)}</span>` : ''}</div>
+      <div class="acts">${staff && !ro && a.status === '待審' ? `<button class="btn g lg" onclick="approve(['${a.id}'],'通過')">✔ 核准</button><button class="btn r lg" onclick="rejectApps(['${a.id}'])">✖ 退回</button>` : ''}${own && !ro ? `<button class="btn lg" onclick="openApp('${a.kind}','${a.id}')">修改</button>` : ''}<button class="btn lg" onclick="showApp('${a.id}')">詳細 ›</button></div></div>`; };
+  const cnt = st => mine.filter(a => stOK(a, st)).length;
+  return `<div class="title"><h2>進出港申請</h2><div class="sp"></div>${ro ? '' : `<button class="btn p lg" onclick="openApp('進港')">＋ 進港申請</button><button class="btn p lg" onclick="openApp('出港')">＋ 出港申請</button><button class="btn lg" onclick="openApp('移泊')">＋ 移泊</button><button class="btn lg" onclick="moreApply()">其他 ▾</button>`}</div>
+  <div class="bar"><div class="seg lg">${['待審', '已核准', '退回/註銷', '全部'].map(st => `<a class="${A8.st === st ? 'on' : ''}" onclick="A8.st='${st}';render()">${st === '待審' ? (staff ? '待審核' : '審核中') : st} <b>${cnt(st)}</b></a>`).join('')}</div>
+  ${staff && !ro && window._a8.length ? `<span class="sp"></span><button class="btn g lg" onclick="if(confirm('核准畫面上 '+window._a8.length+' 筆待審申請？'))approve(window._a8,'通過')">✔ 全部核准（${window._a8.length}）</button>` : ''}</div>
+  <div class="bar"><div class="seg">${[['', '全部種類'], ['進港', '進港'], ['出港', '出港'], ['移泊', '移泊'], ['預報', '預報']].map(([k, n]) => `<a class="${A8.kind === k ? 'on' : ''}" onclick="A8.kind='${k}';render()">${n}</a>`).join('')}</div>
+  <input style="font-size:15px;padding:9px 12px;min-width:200px" placeholder="🔎 船名／單號（按 Enter）" value="${esc(A8.q)}" onchange="A8.q=this.value;render()"></div>
+  <div class="acards">${as.slice(0, 60).map(card).join('') || '<div class="empty" style="grid-column:1/-1;font-size:16px">沒有申請單 👍</div>'}</div>${as.length > 60 ? '<p class="muted">只顯示前 60 筆，請用搜尋縮小範圍</p>' : ''}`;
+};
+function moreApply() {
+  modal('其他申請與工具', `<div class="choice">
+    <button onclick="closeModal();openApp('進港預報')"><b>📡 進港預報</b>客船、貨船進港前預報（小船免）</button>
+    <button onclick="closeModal();openApp('出港預報')"><b>📡 出港預報</b>預報預定出港時間</button>
+    ${isStaff() || me().role === '航商' ? `<button onclick="closeModal();importApply()"><b>⇪ Excel 批次匯入</b>一次匯入多筆進港申請</button>` : ''}
+    <button onclick="closeModal();AP2.kind='進港';exportApps()"><b>⇩ 匯出 Excel</b>匯出進港申請清單</button></div>`, '<button class="btn lg" onclick="closeModal()">關閉</button>');
+}
+// 詳細資料視窗加上 修改／複製／刪除
+const _showApp8 = showApp;
+showApp = function (id) {
+  _showApp8(id); const a = S.apps.find(x => x.id === id); if (!a || !canEdit()) return;
+  const staff = isStaff(), own = !staff && a.status === '待審'; const f = $('#modal .mfoot'); if (!f) return;
+  f.insertAdjacentHTML('afterbegin', `${staff || own ? `<button class="btn r lg" onclick="closeModal();delApp('${id}')">刪除</button>` : ''}<button class="btn lg" onclick="closeModal();openApp('${a.kind}','${id}',true)">複製一張</button>${staff || own ? `<button class="btn lg" onclick="closeModal();openApp('${a.kind}','${id}')">修改</button>` : ''}<span style="flex:1"></span>`);
+};
+
+/* ---------- 申請表單：只先顯示必要欄位，其餘收在「更多欄位」 ---------- */
+const CORE8 = { '進港': ['shipId', 'inTime', 'outTime', 'prevPort', 'nextPort', 'berthId'], '進港預報': ['shipId', 'inTime', 'outTime', 'prevPort', 'nextPort', 'berthId'],
+  '出港': ['shipId', 'voyageId', 'outTime', 'nextPort'], '出港預報': ['shipId', 'voyageId', 'outTime', 'nextPort'], '移泊': ['shipId', 'voyageId', 'berthTo', 'moveKind', 'time'] };
+const _appFields8 = appFields;
+appFields = function (kind, s, vOpts) {
+  const all = _appFields8(kind, s, vOpts); const core = CORE8[kind] || [];
+  const coreF = core.map(k => all.find(f => f.k === k)).filter(Boolean);
+  const rest = all.filter(f => !(f.k && core.includes(f.k)));
+  const rest2 = rest.filter((f, i) => !f.sec || (rest[i + 1] && !rest[i + 1].sec));
+  return [...coreF, { sec: '__MORE__' }, ...rest2];
+};
+function fieldHtml8(f, data) {
+  const v = data[f.k] ?? f.def ?? ''; const dis = f.ro ? 'disabled' : ''; let inp;
+  if (f.type === 'select') inp = `<select id="f_${f.k}" ${dis}>${(f.opts || []).map(o => { const [ov, ol] = Array.isArray(o) ? o : [o, o]; return `<option value="${esc(ov)}" ${String(ov) === String(v) ? 'selected' : ''}>${esc(ol)}</option>`; }).join('')}</select>`;
+  else if (f.type === 'textarea') inp = `<textarea id="f_${f.k}" rows="2" ${dis}>${esc(v)}</textarea>`;
+  else if (f.type === 'datetime') inp = `<input id="f_${f.k}" type="datetime-local" value="${toInput(v)}" ${dis}>`;
+  else if (f.type === 'radio') inp = `<div class="chk" id="f_${f.k}">${f.opts.map(o => `<label><input type="radio" name="r_${f.k}" value="${esc(o)}" ${String(v || f.opts[0]) === o ? 'checked' : ''} ${dis}>${esc(o)}</label>`).join('')}</div>`;
+  else inp = `<input id="f_${f.k}" type="${f.type || 'text'}" value="${f.type === 'file' ? '' : esc(v)}" ${f.step ? `step="${f.step}"` : ''} ${f.type === 'number' ? 'min="0"' : ''} ${dis}>`;
+  return `<div class="f ${f.full ? 'full' : ''}"><label>${esc(f.label)}${f.req ? '<span class="req">*</span>' : ''}${f.unit ? `<span class="muted small">（${f.unit}）</span>` : ''}</label>${inp}${f.hint ? `<div class="hint">${f.hint}</div>` : ''}</div>`;
+}
+formModal2 = function ({ title, fields, data = {}, onSave, note = '', foot }) {
+  FORM = { fields: fields.filter(f => !f.sec), onSave };
+  let html = '', buf = '', more = false;
+  fields.forEach(f => {
+    if (f.sec === '__MORE__') { html += `<div class="form c3 big">${buf}</div>`; buf = ''; more = true; return; }
+    if (f.sec) { buf += `<div class="fsec">${f.sec}${f.hint ? `<span class="small muted">${f.hint}</span>` : ''}</div>`; return; }
+    buf += fieldHtml8(f, data);
+  });
+  html += more ? `<details class="more"><summary>➕ 顯示更多欄位（船體、人員、貨運、附件…已自動帶入，通常不用改）</summary><div class="form c3 big">${buf}</div></details>` : `<div class="form c3 big">${buf}</div>`;
+  modal(title, (note ? `<div class="note">${note}</div>` : '') + html + `<div id="formErr" style="color:var(--red);margin-top:10px;font-size:15px"></div>`,
+    foot || `<button class="btn lg" onclick="closeModal()">取消</button><button class="btn p lg" onclick="submitForm()">送出</button>`, true);
+  fields.forEach(f => f.onchange && $('#f_' + f.k)?.addEventListener('change', f.onchange));
+};
+const _submit8 = submitForm;
+submitForm = function () { _submit8(); const e = $('#formErr'); if (e && e.textContent) { const d = document.querySelector('#modal details.more'); if (d) d.open = true; } };
+
+const _about8 = showAbout;
+showAbout = function () { _about8(); $('#modal .mbody')?.insertAdjacentHTML('afterbegin', `<div class="note"><b>V8（客戶回饋）</b>：船席指派、進出港申請改成大按鈕、乾淨畫面；船席可「互換／取代／分時段」；地圖只留「示意圖／衛星圖」；申請單只先填必要欄位，其餘收在「更多欄位」。</div>`); };
+
 /* ---------- 啟動 ---------- */
 startApp();
 </script>
+
 </body>
 </html>
