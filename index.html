@@ -146,9 +146,9 @@ td.num,th.num{text-align:right}
 </head>
 <body>
 <header>
-  <button class="hbtn" id="menuBtn" onclick="document.querySelector('nav').classList.toggle('open')">☰</button>
+  <button class="hbtn" id="menuBtn" onclick="toggleNav()">☰</button>
   <div class="logo">⚓</div>
-  <h1>金門港 新港埠資訊系統</h1><span class="demo">DEMO V8</span>
+  <h1>金門港 新港埠資訊系統</h1><span class="demo">DEMO V9</span>
   <div class="sp"></div>
   <span id="cloudLbl" class="small" title="資料儲存位置"></span><span id="dateLbl" class="small"></span>
   <select id="userSel" title="切換登入身分（展示權限控管）"></select>
@@ -167,7 +167,7 @@ td.num,th.num{text-align:right}
    - 資料存在瀏覽器（localStorage），「重設資料」可回到初始狀態
    - 所有資料皆為展示用模擬資料
    ============================================================ */
-const KEY = 'kmport-demo-v8';
+const KEY = 'kmport-demo-v9';
 const $ = s => document.querySelector(s);
 const pad = n => String(n).padStart(2, '0');
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -1835,7 +1835,7 @@ VIEWS.portal = () => {
   <div class="pinfo"><ul>
     <li><b>水頭港區服務台</b>：(082) 32-9538；處本部：(082) 33-2268（展示資料）。</li>
     <li>本系統以響應式網頁開發，電腦、平板、手機皆可使用；欄位太多時可左右滑動表格。</li>
-    <li>船席現況圖底圖採用<b>內政部國土測繪中心</b>正射影像／通用電子地圖，亦可切換 OpenStreetMap。</li>
+    <li>港區船席現況圖可切換「衛星圖」（內政部國土測繪中心空拍影像）與「示意圖」。</li>
   </ul></div></div>`;
 };
 const pubTitle = (t, sub) => `<div class="title"><a class="btn s" onclick="go('portal')">‹ 公開入口</a><h2>${t}</h2><span class="sub">${sub || ''}</span><div class="sp"></div><span class="small muted">更新：${fmtT(Date.now())}</span></div>`;
@@ -2803,6 +2803,90 @@ submitForm = function () { _submit8(); const e = $('#formErr'); if (e && e.textC
 
 const _about8 = showAbout;
 showAbout = function () { _about8(); $('#modal .mbody')?.insertAdjacentHTML('afterbegin', `<div class="note"><b>V8（客戶回饋）</b>：船席指派、進出港申請改成大按鈕、乾淨畫面；船席可「互換／取代／分時段」；地圖只留「示意圖／衛星圖」；申請單只先填必要欄位，其餘收在「更多欄位」。</div>`); };
+
+/* V9：startApp() 移到最後 */
+</script>
+<style>
+/* ===== V9：未登入＝首頁大按鈕（無側欄）；登入後＝可摺疊側欄 ===== */
+#menuBtn{display:inline-block}
+body.guest #menuBtn,body.guest nav{display:none!important}
+body.guest .layout{grid-template-columns:1fr;background:var(--bg)}
+body.guest main{padding-top:22px}
+@media (min-width:821px){
+  body.navhide .layout{grid-template-columns:1fr;background:var(--bg)}
+  body.navhide nav{display:none}
+}
+.hbtn.hl{background:#f5b301;color:#14325c;border-color:#f5b301;font-weight:700}
+nav .ntip{font-size:12px;color:var(--muted);padding:2px 18px 8px;display:flex;gap:8px;align-items:center}
+nav .ntip a{display:inline;padding:0;border:0;color:var(--navy2);cursor:pointer;text-decoration:underline}
+nav .ntip span{white-space:nowrap}
+nav .ngh{display:flex;align-items:center;gap:6px;padding:11px 12px 9px 18px;font-size:14px;font-weight:700;color:#3d4a5a;cursor:pointer;user-select:none;border-top:1px solid #eef1f5}
+nav .ngh:hover{background:#f6f8fb}
+nav .ngh .arw{margin-left:auto;color:#98a3b0;transition:transform .15s;font-size:12px}
+nav .ngh.open .arw{transform:rotate(90deg)}
+nav .ngh .pin{font-size:13px;padding:2px 5px;border-radius:5px;filter:grayscale(1);opacity:.35}
+nav .ngh .pin:hover{opacity:.9;background:#e8eef7}
+nav .ngh .pin.on{filter:none;opacity:1}
+nav .ngh .cnt{background:var(--red);color:#fff;border-radius:10px;font-size:11px;padding:0 7px;font-weight:400}
+nav .ngi a{padding-left:28px}
+nav .ngi.closed{display:none}
+</style>
+<script>
+/* ============================================================
+   V9（客戶回饋）：一進來就是首頁大按鈕；側欄只有登入後才出現（不含免登入功能）；
+   登出回到首頁；側欄群組可摺疊（點一個、上一個自動收）＋📌固定；☰ 可整個收起側欄
+   ============================================================ */
+const NAVKEY = 'kmport-nav-v9';
+let NAVST = (() => { try { return JSON.parse(localStorage.getItem(NAVKEY)) || {}; } catch (e) { return {}; } })();
+NAVST.pins = NAVST.pins || []; if (NAVST.open === undefined) NAVST.open = '進出港作業';
+const saveNav = () => { try { localStorage.setItem(NAVKEY, JSON.stringify(NAVST)); } catch (e) {} };
+const PUB_GROUP = '公開資訊（免登入）';
+const groupOf = v => (NAV.find(([g, items]) => g && items.some(i => i[0] === v)) || [])[0];
+function navToggle(g) { if (NAVST.pins.includes(g)) return; NAVST.open = NAVST.open === g ? null : g; saveNav(); renderNav(); }
+function navPin(ev, g) { ev.stopPropagation(); const i = NAVST.pins.indexOf(g); if (i >= 0) NAVST.pins.splice(i, 1); else NAVST.pins.push(g); saveNav(); renderNav(); toast(i >= 0 ? `已取消固定「${g}」` : `📌 已固定「${g}」，會一直展開`); }
+function navAll(open) { const gs = NAV.filter(([g]) => g && g !== PUB_GROUP).map(([g]) => g); NAVST.pins = open ? gs : []; NAVST.open = null; saveNav(); renderNav(); }
+function toggleNav() {
+  if (window.innerWidth <= 820) { document.querySelector('nav').classList.toggle('open'); return; }
+  document.body.classList.toggle('navhide'); try { localStorage.setItem('kmport-navhide', document.body.classList.contains('navhide') ? '1' : ''); } catch (e) {}
+}
+try { if (localStorage.getItem('kmport-navhide')) document.body.classList.add('navhide'); } catch (e) {}
+renderNav = function () {
+  const guest = isGuest();
+  document.body.classList.toggle('guest', guest);
+  const cur = groupOf(VIEW);
+  if (VIEW !== window._navLastView) { window._navLastView = VIEW; if (cur && cur !== PUB_GROUP && !NAVST.pins.includes(cur)) NAVST.open = cur; }   // 換頁時才自動展開所在群組
+  if (NAVST.open === PUB_GROUP) NAVST.open = '進出港作業';
+  const pc = pendingCount(), sc = (S.services || []).filter(x => x.status === '待審').length;
+  const badge = id => (id === 'apply' || id === 'review') && pc && isStaff() ? pc : id === 'service' && sc && isStaff() ? sc : (id === 'apply' && pc && !isStaff() ? pc : 0);
+  const item = i => `<a class="${VIEW === i[0] ? 'on' : ''}" onclick="go('${i[0]}')">${i[1]} ${i[2]}${badge(i[0]) ? `<span class="cnt">${badge(i[0])}</span>` : ''}</a>`;
+  let h = `<div class="ntip"><span>📌＝固定展開</span><span style="margin-left:auto"><a onclick="navAll(true)">全部展開</a>　<a onclick="navAll(false)">全部收合</a></span></div>`;
+  NAV.forEach(([g, items]) => {
+    if (g === PUB_GROUP) return;                                   // 免登入功能只在首頁（登出後）顯示
+    const its = items.filter(i => allowed(i[0])); if (!its.length) return;
+    if (!g) { h += its.map(item).join(''); return; }
+    const pinned = NAVST.pins.includes(g), open = pinned || NAVST.open === g;
+    const sum = its.reduce((s, i) => s + (i[0] === 'review' ? 0 : badge(i[0])), 0);
+    h += `<div class="ngh ${open ? 'open' : ''}" onclick="navToggle('${g}')">${g}${!open && sum ? `<span class="cnt">${sum}</span>` : ''}<span class="pin ${pinned ? 'on' : ''}" title="${pinned ? '取消固定' : '固定展開'}" onclick="navPin(event,'${g}')">📌</span><span class="arw">▶</span></div>
+      <div class="ngi ${open ? '' : 'closed'}">${its.map(item).join('')}</div>`;
+  });
+  h += `<div class="ngh" style="font-weight:400" onclick="showAbout()">ℹ️ 關於此 DEMO</div>`;
+  $('#nav').innerHTML = h;
+  // 頁首：未登入只有「登入」；登入後有身分、登出、重設資料
+  $('#userSel').innerHTML = S.users.filter(u => u.id !== 'u0').map(u => `<option value="${u.id}" ${u.id === S.cur ? 'selected' : ''}>👤 ${esc(u.name)}（${esc(u.role)}）</option>`).join('');
+  $('#userSel').style.display = guest ? 'none' : '';
+  $('#userSel').title = '切換登入身分（DEMO 展示權限用）';
+  const rb = [...document.querySelectorAll('header .hbtn')].find(b => b.textContent.includes('重設資料')); if (rb) rb.style.display = guest ? 'none' : '';
+  let lb = $('#loginBtn'); if (!lb) { $('#userSel').insertAdjacentHTML('afterend', `<button class="hbtn hl" id="loginBtn" onclick="loginBox()">🔑 登入</button><button class="hbtn" id="logoutBtn" onclick="logout()">登出</button>`); }
+  $('#loginBtn').style.display = guest ? '' : 'none'; $('#logoutBtn').style.display = guest ? 'none' : '';
+  const d = new Date(); $('#dateLbl').textContent = `${fmtD(d)}（${WEEK[d.getDay()]}）`;
+};
+// 原本 render() 會依文字再補徽章；V9 已在 renderNav 內處理，這裡去掉重複
+const _render9 = render;
+render = function () { _render9(); document.querySelectorAll('#nav a').forEach(a => { const c = a.querySelectorAll('.cnt'); for (let i = 1; i < c.length; i++) c[i].remove(); }); };
+function logout() { S.cur = 'u0'; save(); document.querySelector('nav')?.classList.remove('open'); go('portal'); toast('已登出，回到首頁'); }
+$('#userSel').onchange = e => { S.cur = e.target.value; save(); toast(`已切換為「${esc(me().name)}」`); go('dash'); };
+const _about9 = showAbout;
+showAbout = function () { _about9(); $('#modal .mbody')?.insertAdjacentHTML('afterbegin', `<div class="note"><b>V9</b>：一進來就是首頁大按鈕；左側功能選單登入後才出現，群組可摺疊（點一個、上一個自動收合），按 📌 可固定展開；左上 ☰ 可整個收起選單；按「登出」回到首頁。</div>`); };
 
 /* ---------- 啟動 ---------- */
 startApp();
