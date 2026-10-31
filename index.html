@@ -2138,7 +2138,7 @@ VIEW = isGuest() ? 'portal' : 'dash'; render();
 if (cloudOn()) {
   cloudLbl('☁ 連線中…');
   const cloudConnect = () => cloudLoad().then(row => {
-    CLOUD_OK = true;
+    CLOUD_OK = true; clearTimeout(CLOUD_T); // V10.1 讀到雲端後取消開頁時排定的儲存，瀏覽不寫入
     if (row && row.data && row.data.v3) { const cur = S.cur; S = row.data; S.cur = cur; CLOUD_AT = row.updated_at; _saveLocal(); render(); cloudLbl('☁ 雲端資料庫'); }
     else cloudPush();
     setInterval(cloudPoll, 20000);
